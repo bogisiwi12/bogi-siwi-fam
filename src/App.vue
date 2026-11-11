@@ -1,8 +1,15 @@
 <script setup>
-import { RouterView, RouterLink } from 'vue-router'
+import { computed } from 'vue'
+import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { useFamilyStore } from '@/stores/familyStore'
+import { useAuthStore } from '@/stores/authStore'
 
 const store = useFamilyStore()
+const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
+
+const isPublic = computed(() => !!route.meta.public)
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: '🏠' },
@@ -12,6 +19,11 @@ const navItems = [
   { path: '/finance', label: 'Finance', icon: '💰' },
   { path: '/shopping', label: 'Shopping', icon: '🛒' }
 ]
+
+async function handleLogout() {
+  await auth.logout()
+  router.push({ name: 'login' })
+}
 </script>
 
 <template>
@@ -23,17 +35,28 @@ const navItems = [
       <div class="anim-float-slow absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-amber-200/30 blur-3xl" style="animation-delay: -4s" />
     </div>
 
-    <div class="relative z-10">
+    <!-- Auth pages (no app shell) -->
+    <div v-if="isPublic" class="relative z-10">
+      <RouterView />
+    </div>
+
+    <div v-else class="relative z-10">
       <!-- Mobile Header -->
       <header class="lg:hidden bg-white/70 backdrop-blur-xl border-b border-indigo-100/70 sticky top-0 z-50 shadow-sm shadow-indigo-100/40">
         <div class="flex items-center justify-between px-4 py-3">
           <h1 class="text-gradient text-xl font-extrabold tracking-tight">Bogi-Siwi Fam</h1>
-          <div class="flex -space-x-2">
-            <div v-for="m in store.members" :key="m.id"
-                 class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-sm shadow-sm transition-transform duration-300 hover:scale-110 hover:z-10"
-                 :style="{ backgroundColor: m.color + '20' }">
-              {{ m.avatar }}
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 rounded-full bg-indigo-50/80 py-1 pl-1 pr-2">
+              <img v-if="auth.user?.photoURL" :src="auth.user.photoURL" alt="" class="h-7 w-7 rounded-full object-cover" />
+              <span v-else class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-pink-500 text-xs font-bold text-white">{{ auth.initial }}</span>
+              <span class="max-w-[90px] truncate text-xs font-semibold text-gray-600">{{ auth.displayName }}</span>
             </div>
+            <button @click="handleLogout" title="Sign out"
+                    class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-90">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
           </div>
         </div>
       </header>
@@ -57,25 +80,42 @@ const navItems = [
             </RouterLink>
           </nav>
 
-          <div class="mt-auto pt-6 border-t border-gray-100">
-            <div class="flex -space-x-2 mb-3">
-              <div v-for="m in store.members" :key="m.id"
-                   class="w-9 h-9 rounded-full border-2 border-white flex items-center justify-center text-sm shadow-sm transition-transform duration-300 hover:scale-110 hover:z-10"
-                   :style="{ backgroundColor: m.color + '20' }"
-                   :title="m.name">
-                {{ m.avatar }}
+          <div class="mt-auto space-y-4 border-t border-gray-100 pt-6">
+            <div class="flex items-center gap-3 rounded-xl bg-indigo-50/70 p-3">
+              <img v-if="auth.user?.photoURL" :src="auth.user.photoURL" alt="" class="h-9 w-9 rounded-full object-cover" />
+              <span v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-pink-500 text-sm font-bold text-white">{{ auth.initial }}</span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold text-gray-700">{{ auth.displayName }}</p>
+                <p class="text-[11px] capitalize text-gray-400">{{ auth.role }}</p>
               </div>
+              <button @click="handleLogout" title="Sign out"
+                      class="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-90">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
             </div>
-            <p class="text-xs text-gray-400">{{ store.members.length }} family members</p>
+
+            <div>
+              <div class="flex -space-x-2 mb-3">
+                <div v-for="m in store.members" :key="m.id"
+                     class="w-9 h-9 rounded-full border-2 border-white flex items-center justify-center text-sm shadow-sm transition-transform duration-300 hover:scale-110 hover:z-10"
+                     :style="{ backgroundColor: m.color + '20' }"
+                     :title="m.name">
+                  {{ m.avatar }}
+                </div>
+              </div>
+              <p class="text-xs text-gray-400">{{ store.members.length }} family members</p>
+            </div>
           </div>
         </aside>
 
         <!-- Main Content -->
         <main class="flex-1 min-w-0 pb-24 lg:pb-8">
           <div class="w-full max-w-7xl mx-auto px-4 py-6 lg:py-8">
-            <RouterView v-slot="{ Component, route }">
+            <RouterView v-slot="{ Component, route: currentRoute }">
               <Transition name="page" mode="out-in">
-                <component :is="Component" :key="route.path" />
+                <component :is="Component" :key="currentRoute.path" />
               </Transition>
             </RouterView>
           </div>
