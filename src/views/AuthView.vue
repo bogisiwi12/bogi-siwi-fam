@@ -95,11 +95,11 @@ async function handleGoogle() {
 
 <template>
   <div class="flex min-h-screen w-full items-center justify-center px-4 py-8">
-    <div class="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/60 bg-white/80 shadow-2xl shadow-indigo-200/50 backdrop-blur-xl anim-scale-in lg:grid-cols-2">
+    <div class="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/60 bg-white/80 shadow-2xl shadow-blue-200/50 backdrop-blur-xl anim-scale-in lg:grid-cols-2">
       <!-- Brand panel -->
-      <div class="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-500 to-pink-500 p-10 text-white lg:flex">
+      <div class="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-blue-600 via-sky-500 to-cyan-500 p-10 text-white lg:flex">
         <div class="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-        <div class="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-pink-300/20 blur-3xl" />
+        <div class="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-cyan-300/20 blur-3xl" />
 
         <div class="relative">
           <div class="flex items-center gap-3">
@@ -137,7 +137,7 @@ async function handleGoogle() {
       <!-- Form panel -->
       <div class="p-6 sm:p-10">
         <div class="mb-6 flex items-center gap-3 lg:hidden">
-          <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-pink-500 text-xl text-white shadow-md">🏡</span>
+          <span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 text-xl text-white shadow-md">🏡</span>
           <span class="text-gradient text-lg font-extrabold">Bogi-Siwi Fam</span>
         </div>
 
@@ -152,12 +152,12 @@ async function handleGoogle() {
         <div class="mt-6 grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1">
           <button type="button" @click="switchMode('login')"
                   class="rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300"
-                  :class="!isRegister ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+                  :class="!isRegister ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
             Sign in
           </button>
           <button type="button" @click="switchMode('register')"
                   class="rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300"
-                  :class="isRegister ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
+                  :class="isRegister ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
             Create account
           </button>
         </div>
@@ -166,13 +166,13 @@ async function handleGoogle() {
           <div v-if="isRegister" class="anim-fade-up">
             <label for="name" class="mb-1.5 block text-xs font-semibold text-gray-600">Full name</label>
             <input id="name" v-model="name" type="text" autocomplete="name" placeholder="Alex Siwi"
-                   class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                   class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
           </div>
 
           <div>
             <label for="email" class="mb-1.5 block text-xs font-semibold text-gray-600">Email address</label>
             <input id="email" v-model="email" type="email" autocomplete="email" placeholder="you@example.com"
-                   class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                   class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
           </div>
 
           <div>
@@ -180,7 +180,7 @@ async function handleGoogle() {
             <div class="relative">
               <input id="password" v-model="password" :type="showPassword ? 'text' : 'password'"
                      :autocomplete="isRegister ? 'new-password' : 'current-password'" placeholder="At least 6 characters"
-                     class="w-full rounded-xl border border-gray-200 px-4 py-2.5 pr-12 text-sm outline-none transition-all duration-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                     class="w-full rounded-xl border border-gray-200 px-4 py-2.5 pr-12 text-sm outline-none transition-all duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
               <button type="button" @click="showPassword = !showPassword"
                       class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-sm text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                       :aria-label="showPassword ? 'Hide password' : 'Show password'">
@@ -193,7 +193,7 @@ async function handleGoogle() {
             <label for="confirm-password" class="mb-1.5 block text-xs font-semibold text-gray-600">Confirm password</label>
             <input id="confirm-password" v-model="confirmPassword" :type="showPassword ? 'text' : 'password'"
                    autocomplete="new-password" placeholder="Repeat your password"
-                   class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                   class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
           </div>
 
           <Transition name="page">
@@ -209,7 +209,7 @@ async function handleGoogle() {
           </Transition>
 
           <button type="submit" :disabled="submitting"
-                  class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-200/70 transition-all duration-300 hover:opacity-90 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70">
+                  class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200/70 transition-all duration-300 hover:opacity-90 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70">
             <span v-if="submitting" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
             {{ submitting ? 'Please wait...' : isRegister ? 'Create account' : 'Sign in' }}
           </button>
@@ -233,7 +233,7 @@ async function handleGoogle() {
         </button>
 
         <p class="mt-6 text-center text-xs text-gray-400">
-          New accounts start as a <span class="font-semibold text-indigo-500">member</span>.
+          New accounts start as a <span class="font-semibold text-blue-500">member</span>.
         </p>
       </div>
     </div>

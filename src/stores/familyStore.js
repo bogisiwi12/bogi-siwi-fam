@@ -4,10 +4,10 @@ import { ref, computed } from 'vue'
 export const useFamilyStore = defineStore('family', () => {
   // --- Family Members & Rules ---
   const members = ref([
-    { id: 1, name: 'Bogi', role: 'Parent', avatar: '👨', color: '#6366f1' },
-    { id: 2, name: 'Siwi', role: 'Parent', avatar: '👩', color: '#ec4899' },
-    { id: 3, name: 'Alex', role: 'Child', avatar: '👦', color: '#10b981' },
-    { id: 4, name: 'Mia', role: 'Child', avatar: '👧', color: '#f59e0b' }
+    { id: 1, name: 'Bogi', role: 'Parent', avatar: '👨', color: '#2563eb' },
+    { id: 2, name: 'Siwi', role: 'Parent', avatar: '👩', color: '#06b6d4' },
+    { id: 3, name: 'Alex', role: 'Child', avatar: '👦', color: '#0ea5e9' },
+    { id: 4, name: 'Mia', role: 'Child', avatar: '👧', color: '#0284c7' }
   ])
 
   const rules = ref([
@@ -19,10 +19,10 @@ export const useFamilyStore = defineStore('family', () => {
 
   // --- Calendar ---
   const events = ref([
-    { id: 1, title: 'Soccer Practice', date: '2026-11-15', time: '16:00', member: 'Alex', color: '#10b981' },
-    { id: 2, title: 'Parent-Teacher Meeting', date: '2026-11-18', time: '14:00', member: 'Mia', color: '#f59e0b' },
-    { id: 3, title: 'Family Movie Night', date: '2026-11-20', time: '19:00', member: 'All', color: '#6366f1' },
-    { id: 4, title: 'Dentist Appointment', date: '2026-11-22', time: '10:00', member: 'Bogi', color: '#ec4899' }
+    { id: 1, title: 'Soccer Practice', date: '2026-11-15', time: '16:00', member: 'Alex', color: '#0ea5e9' },
+    { id: 2, title: 'Parent-Teacher Meeting', date: '2026-11-18', time: '14:00', member: 'Mia', color: '#06b6d4' },
+    { id: 3, title: 'Family Movie Night', date: '2026-11-20', time: '19:00', member: 'All', color: '#2563eb' },
+    { id: 4, title: 'Dentist Appointment', date: '2026-11-22', time: '10:00', member: 'Bogi', color: '#0284c7' }
   ])
 
   // --- Tasks & Chores ---
@@ -88,7 +88,7 @@ export const useFamilyStore = defineStore('family', () => {
       date,
       time,
       member,
-      color: '#6366f1'
+      color: '#2563eb'
     })
   }
 

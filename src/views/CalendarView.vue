@@ -65,32 +65,32 @@ function goToday() {
         <h1 class="text-2xl lg:text-3xl font-extrabold text-gray-800">Family Calendar 📅</h1>
         <p class="text-gray-500 mt-1">Keep track of everyone's schedule.</p>
       </div>
-      <div class="flex items-center gap-2 bg-white/80 backdrop-blur rounded-2xl p-1.5 shadow-sm border border-indigo-100">
-        <button @click="prevMonth" class="p-2 rounded-xl hover:bg-indigo-50 text-indigo-600 transition-all duration-300 hover:scale-110 active:scale-90">←</button>
+      <div class="flex items-center gap-2 bg-white/80 backdrop-blur rounded-2xl p-1.5 shadow-sm border border-blue-100">
+        <button @click="prevMonth" class="p-2 rounded-xl hover:bg-blue-50 text-blue-600 transition-all duration-300 hover:scale-110 active:scale-90">←</button>
         <span class="font-bold text-gray-700 min-w-[140px] text-center tabular-nums">{{ monthNames[currentMonth] }} {{ currentYear }}</span>
-        <button @click="nextMonth" class="p-2 rounded-xl hover:bg-indigo-50 text-indigo-600 transition-all duration-300 hover:scale-110 active:scale-90">→</button>
+        <button @click="nextMonth" class="p-2 rounded-xl hover:bg-blue-50 text-blue-600 transition-all duration-300 hover:scale-110 active:scale-90">→</button>
         <button @click="goToday"
-                class="ml-1 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-pink-500 text-white text-xs font-semibold transition-all duration-300 hover:opacity-90 hover:shadow-md active:scale-95">
+                class="ml-1 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-xs font-semibold transition-all duration-300 hover:opacity-90 hover:shadow-md active:scale-95">
           Today
         </button>
       </div>
     </div>
 
     <!-- Calendar Grid -->
-    <div class="bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-indigo-50 overflow-hidden anim-fade-up" style="--delay: 100ms">
-      <div class="grid grid-cols-7 bg-gradient-to-r from-indigo-500 via-indigo-500 to-pink-500 text-white text-[11px] sm:text-xs font-semibold">
+    <div class="bg-white/80 backdrop-blur rounded-2xl shadow-sm border border-blue-50 overflow-hidden anim-fade-up" style="--delay: 100ms">
+      <div class="grid grid-cols-7 bg-gradient-to-r from-blue-500 via-sky-500 to-cyan-500 text-white text-[11px] sm:text-xs font-semibold">
         <div v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="day"
              class="py-3 text-center tracking-wide">{{ day }}</div>
       </div>
       <div :key="`${currentYear}-${currentMonth}`" class="grid grid-cols-7 anim-fade-in">
         <div v-for="(day, idx) in calendarDays" :key="idx"
              class="group min-h-[74px] lg:min-h-[104px] p-1.5 border-t border-r border-gray-50 transition-colors duration-300"
-             :class="day ? 'bg-white hover:bg-indigo-50/40' : 'bg-gray-50/50'">
+             :class="day ? 'bg-white hover:bg-blue-50/40' : 'bg-gray-50/50'">
           <template v-if="day">
             <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold transition-all duration-300"
                   :class="isToday(day)
-                    ? 'bg-gradient-to-br from-indigo-500 to-pink-500 text-white shadow-md shadow-indigo-200'
-                    : 'text-gray-500 group-hover:text-indigo-600'">
+                    ? 'bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-md shadow-blue-200'
+                    : 'text-gray-500 group-hover:text-blue-600'">
               {{ day }}
             </span>
             <div class="mt-1 space-y-0.5">
@@ -107,7 +107,7 @@ function goToday() {
     </div>
 
     <!-- Event List -->
-    <div class="bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-indigo-50 anim-fade-up" style="--delay: 180ms">
+    <div class="bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-blue-50 anim-fade-up" style="--delay: 180ms">
       <h2 class="font-bold text-gray-800 mb-4">All Events</h2>
       <div class="space-y-2">
         <div v-for="(event, i) in store.events" :key="event.id"
@@ -118,7 +118,7 @@ function goToday() {
             <p class="text-sm font-medium text-gray-700">{{ event.title }}</p>
             <p class="text-xs text-gray-400">{{ event.date }} at {{ event.time }}</p>
           </div>
-          <span class="text-xs px-2 py-1 rounded-full bg-indigo-100 text-indigo-600 font-medium">{{ event.member }}</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-600 font-medium">{{ event.member }}</span>
         </div>
       </div>
     </div>

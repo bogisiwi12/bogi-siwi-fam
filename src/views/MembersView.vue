@@ -10,8 +10,8 @@ const store = useFamilyStore()
         <h1 class="text-2xl lg:text-3xl font-extrabold text-gray-800">Family Members & Rules 👨‍👩‍👧‍👦</h1>
         <p class="text-gray-500 mt-1">Meet the family and our house rules.</p>
       </div>
-      <span class="self-start sm:self-auto inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur px-4 py-2 text-xs font-semibold text-indigo-600 shadow-sm border border-indigo-100">
-        <span class="w-2 h-2 rounded-full bg-indigo-400 anim-pulse-ring" />
+      <span class="self-start sm:self-auto inline-flex items-center gap-2 rounded-full bg-white/70 backdrop-blur px-4 py-2 text-xs font-semibold text-blue-600 shadow-sm border border-blue-100">
+        <span class="w-2 h-2 rounded-full bg-blue-400 anim-pulse-ring" />
         {{ store.members.length }} members · {{ store.rules.length }} rules
       </span>
     </div>
@@ -19,7 +19,7 @@ const store = useFamilyStore()
     <!-- Members -->
     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div v-for="(member, i) in store.members" :key="member.id"
-           class="group relative overflow-hidden bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-indigo-50 text-center hover-lift anim-fade-up"
+           class="group relative overflow-hidden bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-blue-50 text-center hover-lift anim-fade-up"
            :style="{ '--delay': `${i * 90}ms` }">
         <div class="pointer-events-none absolute inset-x-0 top-0 h-1.5 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
              :style="{ background: `linear-gradient(90deg, ${member.color}, transparent)` }" />
@@ -36,11 +36,11 @@ const store = useFamilyStore()
     </div>
 
     <!-- Rules -->
-    <div class="bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-indigo-50 anim-fade-up" style="--delay: 220ms">
+    <div class="bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-blue-50 anim-fade-up" style="--delay: 220ms">
       <h2 class="font-bold text-gray-800 mb-4">📋 House Rules</h2>
       <div class="grid sm:grid-cols-2 gap-4">
         <div v-for="(rule, i) in store.rules" :key="rule.id"
-             class="group flex items-start gap-4 p-4 rounded-xl bg-gradient-to-r from-indigo-50/60 to-pink-50/60 border border-indigo-100/60 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-indigo-200 anim-fade-up"
+             class="group flex items-start gap-4 p-4 rounded-xl bg-gradient-to-r from-blue-50/60 to-cyan-50/60 border border-blue-100/60 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-blue-200 anim-fade-up"
              :style="{ '--delay': `${280 + i * 70}ms` }">
           <span class="text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-6">{{ rule.icon }}</span>
           <div>
