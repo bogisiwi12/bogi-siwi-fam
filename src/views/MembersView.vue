@@ -20,6 +20,15 @@ const newRuleTitle = ref('')
 const newRuleDescription = ref('')
 const newRuleIcon = ref('📌')
 
+const ruleIcons = [
+  '📌', '📋', '📝', '✅', '📱', '⏰',
+  '🌙', '☀️', '🛏️', '🧹', '🧺', '🧼',
+  '🚿', '🪥', '👕', '🎒', '📚', '✏️',
+  '🍽️', '🍎', '💧', '🥗', '🚫', '📵',
+  '🔇', '🤫', '🤝', '❤️', '🙏', '🗣️',
+  '🚪', '🔑', '💡', '🌱', '♻️', '⭐'
+]
+
 async function handleAddMember() {
   if (!auth.isAdmin) return
   if (!newMemberName.value.trim()) return
@@ -179,8 +188,7 @@ function handleAddRule() {
       </div>
       <form class="grid grid-cols-1 gap-3 sm:grid-cols-[72px_minmax(0,1fr)_minmax(0,1.2fr)_auto]"
             @submit.prevent="handleAddRule">
-        <input v-model="newRuleIcon" maxlength="2" placeholder="📌" title="Icon emoji"
-               class="w-full px-2 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm text-center transition-all duration-300" />
+        <IconPicker v-model="newRuleIcon" :icons="ruleIcons" align="right" label="Choose rule icon" />
         <input v-model="newRuleTitle" placeholder="Rule title"
                class="w-full min-w-0 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300" />
         <input v-model="newRuleDescription" placeholder="Short description"

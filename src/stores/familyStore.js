@@ -296,13 +296,18 @@ export const useFamilyStore = defineStore('family', () => {
   }
 
   // --- Transactions ---
-  function addTransaction(description, amount, category) {
+  function addTransaction(
+    description,
+    amount,
+    category,
+    date = new Date().toISOString().split('T')[0]
+  ) {
     return persist(
       addDoc(collection(db, 'transactions'), {
         description: description.trim(),
         amount: parseFloat(amount),
         category,
-        date: new Date().toISOString().split('T')[0],
+        date,
         createdAt: serverTimestamp()
       }),
       'Adding transaction'

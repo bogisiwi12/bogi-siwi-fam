@@ -1,5 +1,6 @@
 <script setup>
 import { useFamilyStore } from '@/stores/familyStore'
+import { formatIDR } from '@/utils/currency'
 import { computed } from 'vue'
 
 const store = useFamilyStore()
@@ -61,8 +62,8 @@ const today = new Date().toLocaleDateString('en-US', {
         <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-sky-100 to-sky-50 flex items-center justify-center text-2xl mb-3 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6">
           💰
         </div>
-        <p class="text-2xl font-extrabold" :class="store.totalBalance >= 0 ? 'text-emerald-600' : 'text-red-500'">
-          ${{ store.totalBalance.toFixed(2) }}
+        <p class="text-xl sm:text-2xl font-extrabold break-words" :class="store.totalBalance >= 0 ? 'text-emerald-600' : 'text-red-500'">
+          {{ formatIDR(store.totalBalance) }}
         </p>
         <p class="text-xs text-gray-400">Balance</p>
       </div>

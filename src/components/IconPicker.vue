@@ -3,26 +3,29 @@ import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '🙂' },
-  align: { type: String, default: 'left' }
+  align: { type: String, default: 'left' },
+  icons: {
+    type: Array,
+    default: () => [
+      '👨', '👩', '👦', '👧', '👶', '🧑',
+      '👴', '👵', '🧔', '👩‍🦰', '👨‍🦱', '👩‍🦱',
+      '👱', '👨‍🦳', '👩‍🦳', '🧓', '👨‍🦲', '👩‍🦲',
+      '🐶', '🐱', '🐭', '🐹', '🐰', '🦊',
+      '🐻', '🐼', '🐨', '🦁', '🐯', '🐸',
+      '🐵', '🦄', '🐧', '🦉', '🐢', '🐠'
+    ]
+  },
+  label: { type: String, default: 'Choose family member icon' }
 })
 
 const emit = defineEmits(['update:modelValue'])
-
-const icons = [
-  '👨', '👩', '👦', '👧', '👶', '🧑',
-  '👴', '👵', '🧔', '👩‍🦰', '👨‍🦱', '👩‍🦱',
-  '👱', '👨‍🦳', '👩‍🦳', '🧓', '👨‍🦲', '👩‍🦲',
-  '🐶', '🐱', '🐭', '🐹', '🐰', '🦊',
-  '🐻', '🐼', '🐨', '🦁', '🐯', '🐸',
-  '🐵', '🦄', '🐧', '🦉', '🐢', '🐠'
-]
 
 const open = ref(false)
 const trigger = ref(null)
 const popover = ref(null)
 const popoverStyle = ref({ top: '0px', left: '0px' })
 
-const POPOVER_WIDTH = 256
+const POPOVER_WIDTH = 288
 const GAP = 8
 
 function updatePosition() {
@@ -82,7 +85,7 @@ onUnmounted(() => {
 
 <template>
   <div class="relative">
-    <button ref="trigger" type="button" :aria-expanded="open" aria-label="Choose family member icon"
+    <button ref="trigger" type="button" :aria-expanded="open" :aria-label="label"
             @click="toggle"
             class="flex h-[42px] w-full items-center justify-center gap-1 rounded-xl border border-gray-200 bg-white px-2 text-lg outline-none transition-all duration-300 hover:border-blue-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
       <span>{{ modelValue }}</span>
@@ -91,7 +94,7 @@ onUnmounted(() => {
 
     <Teleport to="body">
       <div v-if="open" ref="popover"
-           class="fixed z-[200] w-64 rounded-2xl border border-blue-100 bg-white p-3 shadow-2xl shadow-blue-200/60"
+           class="fixed z-[200] w-72 rounded-2xl border border-blue-100 bg-white p-3 shadow-2xl shadow-blue-200/60"
            :style="popoverStyle">
         <div class="grid grid-cols-6 gap-1.5">
           <button v-for="icon in icons" :key="icon" type="button"
