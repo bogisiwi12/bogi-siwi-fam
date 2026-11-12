@@ -65,9 +65,9 @@ async function handleLogout() {
   <div class="relative min-h-screen overflow-x-hidden bg-gradient-to-br from-blue-50 via-white to-cyan-50 font-family-display">
     <!-- Ambient background -->
     <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
-      <div class="anim-float-slow absolute -top-32 -left-24 h-80 w-80 rounded-full bg-blue-300/30 blur-3xl" />
-      <div class="anim-float absolute top-1/3 -right-28 h-96 w-96 rounded-full bg-cyan-300/25 blur-3xl" style="animation-delay: -2s" />
-      <div class="anim-float-slow absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-sky-200/30 blur-3xl" style="animation-delay: -4s" />
+      <div class="absolute -top-32 -left-24 h-80 w-80 rounded-full bg-blue-300/30 blur-3xl" />
+      <div class="absolute top-1/3 -right-28 h-96 w-96 rounded-full bg-cyan-300/25 blur-3xl" />
+      <div class="absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-sky-200/30 blur-3xl" />
     </div>
 
     <!-- Auth pages (no app shell) -->
