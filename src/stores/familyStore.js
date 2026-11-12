@@ -15,26 +15,11 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 
-// Default demo data, seeded into Firestore once on first run
-const defaultMembers = [
-  { id: 'bogi', name: 'Bogi', role: 'Parent', avatar: '👨', color: '#2563eb' },
-  { id: 'siwi', name: 'Siwi', role: 'Parent', avatar: '👩', color: '#06b6d4' },
-  { id: 'alex', name: 'Alex', role: 'Child', avatar: '👦', color: '#0ea5e9' },
-  { id: 'mia', name: 'Mia', role: 'Child', avatar: '👧', color: '#0284c7' }
-]
-
 const defaultRules = [
   { id: 'screen-time', title: 'Screen time limit', description: 'Max 2 hours on weekdays', icon: '📱' },
   { id: 'bedtime', title: 'Bedtime', description: 'Lights out by 9:30 PM', icon: '🌙' },
   { id: 'chores-first', title: 'Chores first', description: 'Complete chores before play', icon: '✅' },
   { id: 'family-dinner', title: 'Family dinner', description: 'All together at 7 PM', icon: '🍽️' }
-]
-
-const defaultEvents = [
-  { id: 'soccer-practice', title: 'Soccer Practice', date: '2026-11-15', time: '16:00', member: 'Alex', color: '#0ea5e9' },
-  { id: 'parent-teacher', title: 'Parent-Teacher Meeting', date: '2026-11-18', time: '14:00', member: 'Mia', color: '#06b6d4' },
-  { id: 'movie-night', title: 'Family Movie Night', date: '2026-11-20', time: '19:00', member: 'All', color: '#2563eb' },
-  { id: 'dentist', title: 'Dentist Appointment', date: '2026-11-22', time: '10:00', member: 'Bogi', color: '#0284c7' }
 ]
 
 const defaultTasks = [
@@ -43,13 +28,6 @@ const defaultTasks = [
   { id: 'vacuum-living-room', title: 'Vacuum living room', assignee: 'Bogi', done: false, points: 10 },
   { id: 'water-plants', title: 'Water plants', assignee: 'Siwi', done: false, points: 2 },
   { id: 'fold-laundry', title: 'Fold laundry', assignee: 'Alex', done: true, points: 5 }
-]
-
-const defaultTransactions = [
-  { id: 'grocery-shopping', description: 'Grocery shopping', amount: -120.5, category: 'Food', date: '2026-11-10' },
-  { id: 'monthly-allowance', description: 'Monthly allowance', amount: 50, category: 'Income', date: '2026-11-01' },
-  { id: 'electricity-bill', description: 'Electricity bill', amount: -85, category: 'Utilities', date: '2026-11-05' },
-  { id: 'school-supplies', description: 'School supplies', amount: -45.3, category: 'Education', date: '2026-11-08' }
 ]
 
 const defaultShoppingItems = [
@@ -61,11 +39,8 @@ const defaultShoppingItems = [
 ]
 
 const seedData = [
-  ['members', defaultMembers],
   ['rules', defaultRules],
-  ['events', defaultEvents],
   ['tasks', defaultTasks],
-  ['transactions', defaultTransactions],
   ['shoppingItems', defaultShoppingItems]
 ]
 
@@ -74,14 +49,8 @@ export const useFamilyStore = defineStore('family', () => {
   const members = ref([])
   const rules = ref([])
 
-  // --- Calendar ---
-  const events = ref([])
-
   // --- Tasks & Chores ---
   const tasks = ref([])
-
-  // --- Finance ---
-  const transactions = ref([])
 
   // --- Shopping List ---
   const shoppingList = ref([])
@@ -92,12 +61,14 @@ export const useFamilyStore = defineStore('family', () => {
   let initPromise = null
   const unbinders = []
   const loaded = new Set()
+  const bindings = [
+    ['members', members],
+    ['rules', rules],
+    ['tasks', tasks],
+    ['shoppingItems', shoppingList]
+  ]
 
   // --- Computed ---
-  const totalBalance = computed(() =>
-    transactions.value.reduce((sum, t) => sum + t.amount, 0)
-  )
-
   const pendingTasks = computed(() =>
     tasks.value.filter(t => !t.done)
   )
@@ -110,7 +81,7 @@ export const useFamilyStore = defineStore('family', () => {
   // --- Real-time Firestore sync ---
   function markLoaded(name) {
     loaded.add(name)
-    if (loaded.size >= seedData.length) loading.value = false
+    if (loaded.size >= bindings.length) loading.value = false
   }
 
   function bindCollection(name, target) {
@@ -118,7 +89,8 @@ export const useFamilyStore = defineStore('family', () => {
     return onSnapshot(
       q,
       (snapshot) => {
-        target.value = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
+        const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
+        target.value = name === 'members' ? items.filter((member) => member.userId === member.id) : items
         markLoaded(name)
       },
       (err) => {
@@ -169,15 +141,6 @@ export const useFamilyStore = defineStore('family', () => {
         console.error('Failed to seed default family data:', err)
       }
 
-      const bindings = [
-        ['members', members],
-        ['rules', rules],
-        ['events', events],
-        ['tasks', tasks],
-        ['transactions', transactions],
-        ['shoppingItems', shoppingList]
-      ]
-
       for (const [name, target] of bindings) {
         unbinders.push(bindCollection(name, target))
       }
@@ -195,32 +158,13 @@ export const useFamilyStore = defineStore('family', () => {
     error.value = ''
     members.value = []
     rules.value = []
-    events.value = []
     tasks.value = []
-    transactions.value = []
     shoppingList.value = []
   }
 
-  // --- Members ---
-  function addMember(name, role, avatar = '🙂', color = '#2563eb') {
-    return persist(
-      addDoc(collection(db, 'members'), {
-        name: name.trim(),
-        role,
-        avatar,
-        color,
-        createdAt: serverTimestamp()
-      }),
-      'Adding member'
-    )
-  }
-
+  // --- Family member presentation ---
   function updateMember(id, data) {
     return persist(updateDoc(doc(db, 'members', id), data), 'Updating member')
-  }
-
-  function removeMember(id) {
-    return persist(deleteDoc(doc(db, 'members', id)), 'Removing member')
   }
 
   // --- Rules ---
@@ -242,29 +186,6 @@ export const useFamilyStore = defineStore('family', () => {
 
   function removeRule(id) {
     return persist(deleteDoc(doc(db, 'rules', id)), 'Removing rule')
-  }
-
-  // --- Events ---
-  function addEvent(title, date, time, member, color = '#2563eb') {
-    return persist(
-      addDoc(collection(db, 'events'), {
-        title: title.trim(),
-        date,
-        time,
-        member,
-        color,
-        createdAt: serverTimestamp()
-      }),
-      'Adding event'
-    )
-  }
-
-  function updateEvent(id, data) {
-    return persist(updateDoc(doc(db, 'events', id), data), 'Updating event')
-  }
-
-  function removeEvent(id) {
-    return persist(deleteDoc(doc(db, 'events', id)), 'Removing event')
   }
 
   // --- Tasks ---
@@ -293,33 +214,6 @@ export const useFamilyStore = defineStore('family', () => {
 
   function removeTask(id) {
     return persist(deleteDoc(doc(db, 'tasks', id)), 'Removing task')
-  }
-
-  // --- Transactions ---
-  function addTransaction(
-    description,
-    amount,
-    category,
-    date = new Date().toISOString().split('T')[0]
-  ) {
-    return persist(
-      addDoc(collection(db, 'transactions'), {
-        description: description.trim(),
-        amount: parseFloat(amount),
-        category,
-        date,
-        createdAt: serverTimestamp()
-      }),
-      'Adding transaction'
-    )
-  }
-
-  function updateTransaction(id, data) {
-    return persist(updateDoc(doc(db, 'transactions', id), data), 'Updating transaction')
-  }
-
-  function removeTransaction(id) {
-    return persist(deleteDoc(doc(db, 'transactions', id)), 'Removing transaction')
   }
 
   // --- Shopping List ---
@@ -354,15 +248,13 @@ export const useFamilyStore = defineStore('family', () => {
   }
 
   return {
-    members, rules, events, tasks, transactions, shoppingList,
+    members, rules, tasks, shoppingList,
     loading, error,
-    totalBalance, pendingTasks, shoppingProgress,
+    pendingTasks, shoppingProgress,
     init, dispose,
-    addMember, updateMember, removeMember,
+    updateMember,
     addRule, updateRule, removeRule,
-    addEvent, updateEvent, removeEvent,
     addTask, toggleTask, updateTask, removeTask,
-    addTransaction, updateTransaction, removeTransaction,
     addShoppingItem, toggleShoppingItem, updateShoppingItem, removeShoppingItem
   }
 })

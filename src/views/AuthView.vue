@@ -20,9 +20,7 @@ const success = ref('')
 const isRegister = computed(() => mode.value === 'register')
 
 const features = [
-  { icon: '📅', label: 'Shared family calendar' },
   { icon: '✅', label: 'Chores and rewards' },
-  { icon: '💰', label: 'Budgets and expenses' },
   { icon: '🛒', label: 'Smart shopping lists' }
 ]
 

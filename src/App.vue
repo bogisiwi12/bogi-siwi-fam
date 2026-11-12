@@ -14,9 +14,7 @@ const isPublic = computed(() => !!route.meta.public)
 const allNavItems = [
   { path: '/', label: 'Dashboard', shortLabel: 'Home', icon: '🏠' },
   { path: '/members', label: 'Members & Rules', shortLabel: 'Members', icon: '👨‍👩‍👧‍👦' },
-  { path: '/calendar', label: 'Calendar', shortLabel: 'Calendar', icon: '📅' },
   { path: '/tasks', label: 'Tasks & Chores', shortLabel: 'Tasks', icon: '✅' },
-  { path: '/finance', label: 'Finance', shortLabel: 'Finance', icon: '💰' },
   { path: '/shopping', label: 'Shopping', shortLabel: 'Shopping', icon: '🛒' },
   {
     path: '/users',

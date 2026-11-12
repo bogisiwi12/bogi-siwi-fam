@@ -20,8 +20,9 @@ rules_version = '2';
 //
 // Collection: members/{memberId}
 //   Access: read = any signed-in user; write = admin only
+//   - userId: string (required, matches memberId and users document)
 //   - name: string (required, 1-60)
-//   - role: string (required, 1-30)
+//   - role: string (required, Parent or Child, matches user role)
 //   - avatar: string (required, 1-10)
 //   - color: string (required, #RRGGBB)
 //   - createdAt: timestamp (optional, immutable)
@@ -33,26 +34,11 @@ rules_version = '2';
 //   - icon: string (required, 1-10)
 //   - createdAt: timestamp (optional, immutable)
 //
-// Collection: events/{eventId}
-//   - title: string (required, 1-100)
-//   - date: string (required, YYYY-MM-DD)
-//   - time: string (required, 1-10)
-//   - member: string (required, 1-60)
-//   - color: string (required, #RRGGBB)
-//   - createdAt: timestamp (optional, immutable)
-//
 // Collection: tasks/{taskId}
 //   - title: string (required, 1-100)
 //   - assignee: string (required, 1-60)
 //   - done: bool (required)
 //   - points: int (required, 0-100)
-//   - createdAt: timestamp (optional, immutable)
-//
-// Collection: transactions/{transactionId}
-//   - description: string (required, 1-120)
-//   - amount: number (required, -1,000,000..1,000,000)
-//   - category: string (required, 1-40)
-//   - date: string (required, YYYY-MM-DD)
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: shoppingItems/{itemId}
@@ -85,6 +71,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
+    function familyUserDocPath(userId) {
+      return /databases/$(database)/documents/users/$(userId);
+    }
+
     function isAdmin() {
       return isSignedIn() && (
         isBootstrapAdmin()
@@ -108,10 +98,6 @@ service cloud.firestore {
 
     function isHexColor(value) {
       return value is string && value.matches('^#[0-9a-fA-F]{6}$');
-    }
-
-    function isIsoDate(value) {
-      return value is string && value.matches('^\\d{4}-\\d{2}-\\d{2}$');
     }
 
     function isValidEmail(value) {
@@ -145,12 +131,21 @@ service cloud.firestore {
         && isValidRole(data.role);
     }
 
-    function isValidMember(data) {
-      return data.keys().hasOnly(['name', 'role', 'avatar', 'color', 'createdAt'])
+    function isValidMember(data, userId) {
+      return data.keys().hasOnly(['userId', 'name', 'role', 'avatar', 'color', 'createdAt'])
+        && data.userId == userId
         && data.name is string && data.name.size() > 0 && data.name.size() <= 60
-        && data.role is string && data.role.size() > 0 && data.role.size() <= 30
+        && data.role in ['Parent', 'Child']
         && data.avatar is string && data.avatar.size() > 0 && data.avatar.size() <= 10
         && isHexColor(data.color);
+    }
+
+    function matchesFamilyUserRole(userId, role) {
+      return exists(familyUserDocPath(userId))
+        && (
+          (get(familyUserDocPath(userId)).data.role == 'parent' && role == 'Parent')
+          || (get(familyUserDocPath(userId)).data.role == 'child' && role == 'Child')
+        );
     }
 
     function isValidRule(data) {
@@ -160,29 +155,12 @@ service cloud.firestore {
         && data.icon is string && data.icon.size() > 0 && data.icon.size() <= 10;
     }
 
-    function isValidEvent(data) {
-      return data.keys().hasOnly(['title', 'date', 'time', 'member', 'color', 'createdAt'])
-        && data.title is string && data.title.size() > 0 && data.title.size() <= 100
-        && isIsoDate(data.date)
-        && data.time is string && data.time.size() > 0 && data.time.size() <= 10
-        && data.member is string && data.member.size() > 0 && data.member.size() <= 60
-        && isHexColor(data.color);
-    }
-
     function isValidTask(data) {
       return data.keys().hasOnly(['title', 'assignee', 'done', 'points', 'createdAt'])
         && data.title is string && data.title.size() > 0 && data.title.size() <= 100
         && data.assignee is string && data.assignee.size() > 0 && data.assignee.size() <= 60
         && data.done is bool
         && data.points is int && data.points >= 0 && data.points <= 100;
-    }
-
-    function isValidTransaction(data) {
-      return data.keys().hasOnly(['description', 'amount', 'category', 'date', 'createdAt'])
-        && data.description is string && data.description.size() > 0 && data.description.size() <= 120
-        && data.amount is number && data.amount >= -1000000 && data.amount <= 1000000
-        && data.category is string && data.category.size() > 0 && data.category.size() <= 40
-        && isIsoDate(data.date);
     }
 
     function isValidShoppingItem(data) {
@@ -250,9 +228,13 @@ service cloud.firestore {
     // =============================================================
     match /members/{memberId} {
       allow read: if isSignedIn();
-      allow create: if isAdmin() && isValidMember(request.resource.data);
+      allow create: if isAdmin()
+        && isValidMember(request.resource.data, memberId)
+        && matchesFamilyUserRole(memberId, request.resource.data.role);
       allow update: if isAdmin()
-        && isValidMember(request.resource.data)
+        && isValidMember(request.resource.data, memberId)
+        && matchesFamilyUserRole(memberId, request.resource.data.role)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'role', 'avatar', 'color'])
         && createdAtUnchanged();
       allow delete: if isAdmin();
     }
@@ -270,17 +252,6 @@ service cloud.firestore {
     }
 
     // =============================================================
-    // Calendar events
-    // =============================================================
-    match /events/{eventId} {
-      allow read, delete: if isSignedIn();
-      allow create: if isSignedIn() && isValidEvent(request.resource.data);
-      allow update: if isSignedIn()
-        && isValidEvent(request.resource.data)
-        && createdAtUnchanged();
-    }
-
-    // =============================================================
     // Tasks & chores
     // =============================================================
     match /tasks/{taskId} {
@@ -288,17 +259,6 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidTask(request.resource.data);
       allow update: if isSignedIn()
         && isValidTask(request.resource.data)
-        && createdAtUnchanged();
-    }
-
-    // =============================================================
-    // Finance transactions
-    // =============================================================
-    match /transactions/{transactionId} {
-      allow read, delete: if isSignedIn();
-      allow create: if isSignedIn() && isValidTransaction(request.resource.data);
-      allow update: if isSignedIn()
-        && isValidTransaction(request.resource.data)
         && createdAtUnchanged();
     }
 

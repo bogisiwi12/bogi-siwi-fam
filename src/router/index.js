@@ -14,16 +14,15 @@ const router = createRouter({
     },
     { path: '/', name: 'dashboard', component: DashboardView },
     { path: '/members', name: 'members', component: () => import('@/views/MembersView.vue') },
-    { path: '/calendar', name: 'calendar', component: () => import('@/views/CalendarView.vue') },
     { path: '/tasks', name: 'tasks', component: () => import('@/views/TasksView.vue') },
-    { path: '/finance', name: 'finance', component: () => import('@/views/FinanceView.vue') },
     { path: '/shopping', name: 'shopping', component: () => import('@/views/ShoppingView.vue') },
     {
       path: '/users',
       name: 'users',
       component: () => import('@/views/UsersView.vue'),
       meta: { requiresAdmin: true }
-    }
+    },
+    { path: '/:pathMatch(.*)*', redirect: '/' }
   ]
 })
 

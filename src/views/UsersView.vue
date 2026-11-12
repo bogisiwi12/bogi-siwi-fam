@@ -154,8 +154,8 @@ onUnmounted(() => store.dispose())
     <div class="rounded-2xl border border-blue-100/70 bg-blue-50/60 px-4 py-3 text-xs text-blue-700 anim-fade-up" style="--delay: 180ms">
       <p class="font-semibold">Role permissions</p>
       <p class="mt-1 text-blue-600/80">
-        <strong>Admin</strong> can manage user roles. <strong>Parent</strong>, <strong>Child</strong>, and
-        <strong>Member</strong> are labels for now and can be used to control access later. You cannot change your own role.
+        <strong>Admin</strong> can manage user roles. Users assigned <strong>Parent</strong> or <strong>Child</strong>
+        appear automatically in Family Members. <strong>Member</strong> users do not appear there. You cannot change your own role.
       </p>
     </div>
   </div>

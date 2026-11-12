@@ -7,14 +7,8 @@ import IconPicker from '@/components/IconPicker.vue'
 const store = useFamilyStore()
 const auth = useAuthStore()
 
-const newMemberName = ref('')
-const newMemberRole = ref('Child')
-const newMemberAvatar = ref('🙂')
-const newMemberColor = ref('#2563eb')
-
 const editingMember = ref(null)
-const editForm = ref({ name: '', role: 'Child', avatar: '🙂', color: '#2563eb' })
-const memberToDelete = ref(null)
+const editForm = ref({ name: '', avatar: '🙂', color: '#2563eb' })
 
 const newRuleTitle = ref('')
 const newRuleDescription = ref('')
@@ -29,28 +23,12 @@ const ruleIcons = [
   '🚪', '🔑', '💡', '🌱', '♻️', '⭐'
 ]
 
-async function handleAddMember() {
-  if (!auth.isAdmin) return
-  if (!newMemberName.value.trim()) return
-  const ok = await store.addMember(
-    newMemberName.value,
-    newMemberRole.value,
-    newMemberAvatar.value,
-    newMemberColor.value
-  )
-  if (!ok) return
-  newMemberName.value = ''
-  newMemberAvatar.value = '🙂'
-  newMemberColor.value = '#2563eb'
-}
-
 function openEditMember(member) {
   if (!auth.isAdmin) return
   store.error = ''
   editingMember.value = member
   editForm.value = {
     name: member.name,
-    role: member.role,
     avatar: member.avatar || '🙂',
     color: member.color || '#2563eb'
   }
@@ -65,27 +43,10 @@ async function saveEditMember() {
   if (!editForm.value.name.trim()) return
   const ok = await store.updateMember(editingMember.value.id, {
     name: editForm.value.name.trim(),
-    role: editForm.value.role,
     avatar: editForm.value.avatar,
     color: editForm.value.color
   })
   if (ok) closeEditMember()
-}
-
-function askRemoveMember(member) {
-  if (!auth.isAdmin) return
-  memberToDelete.value = member
-}
-
-function cancelRemoveMember() {
-  memberToDelete.value = null
-}
-
-async function confirmRemoveMember() {
-  if (!memberToDelete.value) return
-  const target = memberToDelete.value
-  memberToDelete.value = null
-  await store.removeMember(target.id)
 }
 
 function handleAddRule() {
@@ -118,37 +79,16 @@ function handleAddRule() {
       </div>
     </Transition>
 
-    <!-- Add Member -->
-    <div v-if="auth.isAdmin" class="bg-white/80 backdrop-blur rounded-2xl p-4 sm:p-5 shadow-sm border border-blue-50 anim-fade-up" style="--delay: 40ms">
-      <div class="mb-3 flex items-center gap-2">
-        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-sm">➕</span>
-        <h2 class="text-sm font-bold text-gray-700">Add family member</h2>
-      </div>
-      <form class="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_80px_72px_auto]"
-            @submit.prevent="handleAddMember">
-        <input v-model="newMemberName" maxlength="60" placeholder="Name"
-               class="col-span-2 sm:col-span-1 w-full min-w-0 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300" />
-        <select v-model="newMemberRole"
-                class="w-full min-w-0 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm bg-white transition-all duration-300">
-          <option>Parent</option>
-          <option>Child</option>
-        </select>
-        <IconPicker v-model="newMemberAvatar" align="right" />
-        <input v-model="newMemberColor" type="color" title="Color"
-               class="h-[42px] w-full cursor-pointer rounded-xl border border-gray-200 bg-white p-1 outline-none transition-all duration-300" />
-        <button type="submit"
-                class="col-span-2 sm:col-span-1 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold shadow-md shadow-blue-200/60 transition-all duration-300 hover:opacity-90 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95">
-          Add
-        </button>
-      </form>
-    </div>
-
-    <div v-else class="rounded-2xl border border-blue-100/70 bg-blue-50/60 px-4 py-3 text-xs font-medium text-blue-700 anim-fade-up" style="--delay: 40ms">
-      🔒 Only admins can add or remove family members.
+    <div class="rounded-2xl border border-blue-100/70 bg-blue-50/60 px-4 py-3 text-xs font-medium text-blue-700 anim-fade-up" style="--delay: 40ms">
+      Family members are added automatically when their user role is set to Parent or Child. Admins can edit their name, icon, and color here.
     </div>
 
     <!-- Members -->
     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div v-if="store.members.length === 0"
+           class="col-span-full rounded-2xl border border-dashed border-blue-200 bg-white/60 px-6 py-10 text-center text-sm text-gray-500">
+        No family members yet. Assign a user the Parent or Child role in User Management to add them.
+      </div>
       <div v-for="(member, i) in store.members" :key="member.id"
            class="group relative overflow-hidden bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-blue-50 text-center hover-lift anim-fade-up"
            :style="{ '--delay': `${i * 90}ms` }">
@@ -157,12 +97,6 @@ function handleAddRule() {
                   class="flex h-8 w-8 items-center justify-center rounded-full border border-blue-100 bg-white/90 text-blue-500 shadow-sm backdrop-blur transition-all duration-300 hover:scale-110 hover:bg-blue-50 active:scale-90">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487a2.06 2.06 0 1 1 2.914 2.914L8.5 18.677l-4.2 1.1 1.1-4.2L16.862 4.487Z" />
-            </svg>
-          </button>
-          <button @click="askRemoveMember(member)" title="Remove member"
-                  class="flex h-8 w-8 items-center justify-center rounded-full border border-red-100 bg-white/90 text-red-400 shadow-sm backdrop-blur transition-all duration-300 hover:scale-110 hover:bg-red-50 active:scale-90">
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 .93h6a1 1 0 0 0 1-.93l1-13M10 11v6m4-6v6" />
             </svg>
           </button>
         </div>
@@ -232,7 +166,7 @@ function handleAddRule() {
             <div class="mb-5 flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-extrabold text-gray-800">Edit family member</h2>
-                <p class="mt-1 text-xs text-gray-400">Update their name, role, icon, or color.</p>
+                <p class="mt-1 text-xs text-gray-400">Update their name, icon, or color.</p>
               </div>
               <button type="button" @click="closeEditMember" title="Close"
                       class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
@@ -258,20 +192,10 @@ function handleAddRule() {
                        class="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
               </div>
 
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="mb-1.5 block text-xs font-semibold text-gray-600">Role</label>
-                  <select v-model="editForm.role"
-                          class="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
-                    <option>Parent</option>
-                    <option>Child</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="mb-1.5 block text-xs font-semibold text-gray-600">Color</label>
-                  <input v-model="editForm.color" type="color"
-                         class="h-[42px] w-full cursor-pointer rounded-xl border border-gray-200 bg-white p-1 outline-none transition-all duration-300" />
-                </div>
+              <div>
+                <label class="mb-1.5 block text-xs font-semibold text-gray-600">Color</label>
+                <input v-model="editForm.color" type="color"
+                       class="h-[42px] w-full cursor-pointer rounded-xl border border-gray-200 bg-white p-1 outline-none transition-all duration-300" />
               </div>
 
               <div v-if="store.error"
@@ -295,29 +219,5 @@ function handleAddRule() {
       </Transition>
     </Teleport>
 
-    <Teleport to="body">
-      <Transition name="page">
-        <div v-if="memberToDelete" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="cancelRemoveMember" />
-          <div class="relative w-full max-w-sm rounded-3xl border border-red-100 bg-white p-6 text-center shadow-2xl">
-            <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl">🗑️</div>
-            <h2 class="mt-4 text-lg font-extrabold text-gray-800">Remove member?</h2>
-            <p class="mt-1 text-sm text-gray-500">
-              <span class="font-semibold text-gray-700">{{ memberToDelete.name }}</span> will be removed from the family list.
-            </p>
-            <div class="mt-6 flex justify-center gap-2">
-              <button type="button" @click="cancelRemoveMember"
-                      class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-600 transition-all duration-300 hover:bg-gray-50 active:scale-95">
-                Cancel
-              </button>
-              <button type="button" @click="confirmRemoveMember"
-                      class="rounded-xl bg-gradient-to-r from-red-500 to-rose-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200/60 transition-all duration-300 hover:opacity-90 hover:shadow-lg active:scale-95">
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
 </template>
