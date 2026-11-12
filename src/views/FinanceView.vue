@@ -116,6 +116,10 @@ function handleAdd() {
                 :class="tx.amount >= 0 ? 'text-green-600' : 'text-red-500'">
             {{ tx.amount >= 0 ? '+' : '' }}{{ tx.amount.toFixed(2) }}
           </span>
+          <button @click="store.removeTransaction(tx.id)"
+                  class="text-xs font-semibold text-red-400 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 transition-all duration-300 active:scale-90">
+            Remove
+          </button>
         </div>
       </TransitionGroup>
     </div>

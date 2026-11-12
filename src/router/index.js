@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import { useFamilyStore } from '@/stores/familyStore'
 import DashboardView from '@/views/DashboardView.vue'
 
 const router = createRouter({
@@ -38,6 +39,9 @@ router.beforeEach(async (to) => {
       query: to.fullPath === '/' ? {} : { redirect: to.fullPath }
     }
   }
+
+  const familyStore = useFamilyStore()
+  await familyStore.init()
 
   return true
 })

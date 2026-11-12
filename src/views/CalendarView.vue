@@ -4,6 +4,11 @@ import { ref, computed } from 'vue'
 
 const store = useFamilyStore()
 
+const newEventTitle = ref('')
+const newEventDate = ref(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`)
+const newEventTime = ref('09:00')
+const newEventMember = ref('All')
+
 const currentMonth = ref(new Date().getMonth())
 const currentYear = ref(new Date().getFullYear())
 
@@ -56,6 +61,13 @@ function goToday() {
   currentMonth.value = now.getMonth()
   currentYear.value = now.getFullYear()
 }
+
+function handleAddEvent() {
+  if (!newEventTitle.value.trim() || !newEventDate.value || !newEventTime.value) return
+  const member = store.members.find(m => m.name === newEventMember.value)
+  store.addEvent(newEventTitle.value, newEventDate.value, newEventTime.value, newEventMember.value, member?.color || '#2563eb')
+  newEventTitle.value = ''
+}
 </script>
 
 <template>
@@ -106,6 +118,32 @@ function goToday() {
       </div>
     </div>
 
+    <!-- Add Event -->
+    <div class="bg-white/80 backdrop-blur rounded-2xl p-4 sm:p-5 shadow-sm border border-blue-50 anim-fade-up" style="--delay: 140ms">
+      <div class="mb-3 flex items-center gap-2">
+        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-sm">➕</span>
+        <h2 class="text-sm font-bold text-gray-700">Add event</h2>
+      </div>
+      <form class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]"
+            @submit.prevent="handleAddEvent">
+        <input v-model="newEventTitle" placeholder="Event title"
+               class="w-full min-w-0 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300" />
+        <input v-model="newEventDate" type="date"
+               class="w-full min-w-0 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300" />
+        <input v-model="newEventTime" type="time"
+               class="w-full min-w-0 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300" />
+        <select v-model="newEventMember"
+                class="w-full min-w-0 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm bg-white transition-all duration-300">
+          <option>All</option>
+          <option v-for="m in store.members" :key="m.id" :value="m.name">{{ m.name }}</option>
+        </select>
+        <button type="submit"
+                class="w-full xl:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold shadow-md shadow-blue-200/60 transition-all duration-300 hover:opacity-90 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95 sm:col-span-2 xl:col-span-1">
+          Add
+        </button>
+      </form>
+    </div>
+
     <!-- Event List -->
     <div class="bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-blue-50 anim-fade-up" style="--delay: 180ms">
       <h2 class="font-bold text-gray-800 mb-4">All Events</h2>
@@ -119,6 +157,10 @@ function goToday() {
             <p class="text-xs text-gray-400">{{ event.date }} at {{ event.time }}</p>
           </div>
           <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-600 font-medium">{{ event.member }}</span>
+          <button @click="store.removeEvent(event.id)"
+                  class="text-xs font-semibold text-red-400 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 transition-all duration-300 active:scale-90">
+            Remove
+          </button>
         </div>
       </div>
     </div>

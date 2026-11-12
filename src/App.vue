@@ -21,6 +21,7 @@ const navItems = [
 ]
 
 async function handleLogout() {
+  store.dispose()
   await auth.logout()
   router.push({ name: 'login' })
 }

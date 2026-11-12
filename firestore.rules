@@ -1,0 +1,261 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users/{userId}   (userId == request.auth.uid)
+//   - uid: string (required, must match auth uid)
+//   - name: string (required, 1-60 chars)
+//   - email: string (required, empty or valid email)
+//   - photoURL: string (required, empty or https URL)
+//   - role: string (required, always "member"; immutable after create)
+//   - createdAt: timestamp (optional)
+//   - lastLoginAt: timestamp (optional)
+//
+// Collection: family/{docId}
+//   - seeded: bool (required on create/update, must stay true)
+//   - seededAt: timestamp (optional)
+//
+// Collection: members/{memberId}
+//   - name: string (required, 1-60)
+//   - role: string (required, 1-30)
+//   - avatar: string (required, 1-10)
+//   - color: string (required, #RRGGBB)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: rules/{ruleId}
+//   - title: string (required, 1-80)
+//   - description: string (required, <=200)
+//   - icon: string (required, 1-10)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: events/{eventId}
+//   - title: string (required, 1-100)
+//   - date: string (required, YYYY-MM-DD)
+//   - time: string (required, 1-10)
+//   - member: string (required, 1-60)
+//   - color: string (required, #RRGGBB)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: tasks/{taskId}
+//   - title: string (required, 1-100)
+//   - assignee: string (required, 1-60)
+//   - done: bool (required)
+//   - points: int (required, 0-100)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: transactions/{transactionId}
+//   - description: string (required, 1-120)
+//   - amount: number (required, -1,000,000..1,000,000)
+//   - category: string (required, 1-40)
+//   - date: string (required, YYYY-MM-DD)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: shoppingItems/{itemId}
+//   - name: string (required, 1-80)
+//   - quantity: int (required, 1-1000)
+//   - category: string (required, 1-40)
+//   - done: bool (required)
+//   - createdAt: timestamp (optional, immutable)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =============================================================
+    // Helper Functions
+    // =============================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isHexColor(value) {
+      return value is string && value.matches('^#[0-9a-fA-F]{6}$');
+    }
+
+    function isIsoDate(value) {
+      return value is string && value.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function isValidEmail(value) {
+      return value is string
+        && (value == '' || value.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'));
+    }
+
+    function isValidUrl(value) {
+      return value is string
+        && (value == '' || value.matches('^https://.+'));
+    }
+
+    // createdAt (when present) may not change after creation.
+    function createdAtUnchanged() {
+      return !('createdAt' in resource.data)
+        || (('createdAt' in request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt);
+    }
+
+    // =============================================================
+    // Domain Validators (used for BOTH create and update)
+    // =============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasOnly(['uid', 'name', 'email', 'photoURL', 'role', 'createdAt', 'lastLoginAt'])
+        && data.uid is string
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 60
+        && isValidEmail(data.email)
+        && isValidUrl(data.photoURL)
+        && data.role is string;
+    }
+
+    function isValidMember(data) {
+      return data.keys().hasOnly(['name', 'role', 'avatar', 'color', 'createdAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 60
+        && data.role is string && data.role.size() > 0 && data.role.size() <= 30
+        && data.avatar is string && data.avatar.size() > 0 && data.avatar.size() <= 10
+        && isHexColor(data.color);
+    }
+
+    function isValidRule(data) {
+      return data.keys().hasOnly(['title', 'description', 'icon', 'createdAt'])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 80
+        && data.description is string && data.description.size() <= 200
+        && data.icon is string && data.icon.size() > 0 && data.icon.size() <= 10;
+    }
+
+    function isValidEvent(data) {
+      return data.keys().hasOnly(['title', 'date', 'time', 'member', 'color', 'createdAt'])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 100
+        && isIsoDate(data.date)
+        && data.time is string && data.time.size() > 0 && data.time.size() <= 10
+        && data.member is string && data.member.size() > 0 && data.member.size() <= 60
+        && isHexColor(data.color);
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasOnly(['title', 'assignee', 'done', 'points', 'createdAt'])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 100
+        && data.assignee is string && data.assignee.size() > 0 && data.assignee.size() <= 60
+        && data.done is bool
+        && data.points is int && data.points >= 0 && data.points <= 100;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasOnly(['description', 'amount', 'category', 'date', 'createdAt'])
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 120
+        && data.amount is number && data.amount >= -1000000 && data.amount <= 1000000
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 40
+        && isIsoDate(data.date);
+    }
+
+    function isValidShoppingItem(data) {
+      return data.keys().hasOnly(['name', 'quantity', 'category', 'done', 'createdAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 80
+        && data.quantity is int && data.quantity >= 1 && data.quantity <= 1000
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 40
+        && data.done is bool;
+    }
+
+    // =============================================================
+    // User profiles (owner-only, contains PII)
+    // =============================================================
+    match /users/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && isValidUser(request.resource.data)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role == 'member';
+
+      // role and uid are immutable, so a user can never escalate privileges.
+      allow update: if isSignedIn()
+        && request.auth.uid == userId
+        && isValidUser(request.resource.data)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role == resource.data.role;
+
+      allow delete: if false;
+    }
+
+    // =============================================================
+    // Family metadata (one-time seeding marker)
+    // =============================================================
+    match /family/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.seeded == true;
+      allow update: if isSignedIn()
+        && resource.data.seeded == true
+        && request.resource.data.seeded == true;
+      allow delete: if false;
+    }
+
+    // =============================================================
+    // Family members
+    // =============================================================
+    match /members/{memberId} {
+      allow read, delete: if isSignedIn();
+      allow create: if isSignedIn() && isValidMember(request.resource.data);
+      allow update: if isSignedIn()
+        && isValidMember(request.resource.data)
+        && createdAtUnchanged();
+    }
+
+    // =============================================================
+    // House rules
+    // =============================================================
+    match /rules/{ruleId} {
+      allow read, delete: if isSignedIn();
+      allow create: if isSignedIn() && isValidRule(request.resource.data);
+      allow update: if isSignedIn()
+        && isValidRule(request.resource.data)
+        && createdAtUnchanged();
+    }
+
+    // =============================================================
+    // Calendar events
+    // =============================================================
+    match /events/{eventId} {
+      allow read, delete: if isSignedIn();
+      allow create: if isSignedIn() && isValidEvent(request.resource.data);
+      allow update: if isSignedIn()
+        && isValidEvent(request.resource.data)
+        && createdAtUnchanged();
+    }
+
+    // =============================================================
+    // Tasks & chores
+    // =============================================================
+    match /tasks/{taskId} {
+      allow read, delete: if isSignedIn();
+      allow create: if isSignedIn() && isValidTask(request.resource.data);
+      allow update: if isSignedIn()
+        && isValidTask(request.resource.data)
+        && createdAtUnchanged();
+    }
+
+    // =============================================================
+    // Finance transactions
+    // =============================================================
+    match /transactions/{transactionId} {
+      allow read, delete: if isSignedIn();
+      allow create: if isSignedIn() && isValidTransaction(request.resource.data);
+      allow update: if isSignedIn()
+        && isValidTransaction(request.resource.data)
+        && createdAtUnchanged();
+    }
+
+    // =============================================================
+    // Shopping list items
+    // =============================================================
+    match /shoppingItems/{itemId} {
+      allow read, delete: if isSignedIn();
+      allow create: if isSignedIn() && isValidShoppingItem(request.resource.data);
+      allow update: if isSignedIn()
+        && isValidShoppingItem(request.resource.data)
+        && createdAtUnchanged();
+    }
+  }
+}
