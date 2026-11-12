@@ -9,7 +9,8 @@ rules_version = '2';
 //   - name: string (required, 1-60 chars)
 //   - email: string (required, empty or valid email)
 //   - photoURL: string (required, empty or https URL)
-//   - role: string (required, always "member"; immutable after create)
+//   - role: string (required, one of admin/parent/child/member)
+//           owners cannot change their own role; admins can change others'
 //   - createdAt: timestamp (optional)
 //   - lastLoginAt: timestamp (optional)
 //
@@ -18,6 +19,7 @@ rules_version = '2';
 //   - seededAt: timestamp (optional)
 //
 // Collection: members/{memberId}
+//   Access: read = any signed-in user; write = admin only
 //   - name: string (required, 1-60)
 //   - role: string (required, 1-30)
 //   - avatar: string (required, 1-10)
@@ -25,6 +27,7 @@ rules_version = '2';
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: rules/{ruleId}
+//   Access: read = any signed-in user; write = admin or parent
 //   - title: string (required, 1-80)
 //   - description: string (required, <=200)
 //   - icon: string (required, 1-10)
@@ -72,6 +75,37 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Keep this list in sync with BOOTSTRAP_ADMIN_EMAILS in src/config/roles.js.
+    function isBootstrapAdmin() {
+      return isSignedIn()
+        && request.auth.token.get('email', '').lower() in ['bogisiwi12@gmail.com'];
+    }
+
+    function userDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isBootstrapAdmin()
+        || (exists(userDocPath()) && get(userDocPath()).data.role == 'admin')
+      );
+    }
+
+    function isParent() {
+      return isSignedIn()
+        && exists(userDocPath())
+        && get(userDocPath()).data.role == 'parent';
+    }
+
+    function isAdminOrParent() {
+      return isAdmin() || isParent();
+    }
+
+    function isValidRole(role) {
+      return role in ['admin', 'parent', 'child', 'member'];
+    }
+
     function isHexColor(value) {
       return value is string && value.matches('^#[0-9a-fA-F]{6}$');
     }
@@ -107,7 +141,8 @@ service cloud.firestore {
         && data.name is string && data.name.size() > 0 && data.name.size() <= 60
         && isValidEmail(data.email)
         && isValidUrl(data.photoURL)
-        && data.role is string;
+        && data.role is string
+        && isValidRole(data.role);
     }
 
     function isValidMember(data) {
@@ -159,23 +194,41 @@ service cloud.firestore {
     }
 
     // =============================================================
-    // User profiles (owner-only, contains PII)
+    // User profiles (owner or admin, contains PII)
     // =============================================================
     match /users/{userId} {
-      allow read: if isSignedIn() && request.auth.uid == userId;
+      // Owners can read themselves; admins can read/list everyone.
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
 
       allow create: if isSignedIn()
         && request.auth.uid == userId
         && isValidUser(request.resource.data)
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.role == 'member';
+        && (request.resource.data.role == 'member'
+          || (isBootstrapAdmin() && request.resource.data.role == 'admin'));
 
-      // role and uid are immutable, so a user can never escalate privileges.
+      // Owners may edit their profile but cannot change their own role
+      // (except the bootstrap admin, who is promoted to admin once).
+      // Admins may change other users' roles, and only the role field.
       allow update: if isSignedIn()
-        && request.auth.uid == userId
         && isValidUser(request.resource.data)
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.role == resource.data.role;
+        && (
+          (
+            request.auth.uid == userId
+            && request.resource.data.uid == request.auth.uid
+            && (
+              request.resource.data.role == resource.data.role
+              || (isBootstrapAdmin() && request.resource.data.role == 'admin')
+            )
+          )
+          || (
+            isAdmin()
+            && request.auth.uid != userId
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+          )
+        );
 
       allow delete: if false;
     }
@@ -196,22 +249,24 @@ service cloud.firestore {
     // Family members
     // =============================================================
     match /members/{memberId} {
-      allow read, delete: if isSignedIn();
-      allow create: if isSignedIn() && isValidMember(request.resource.data);
-      allow update: if isSignedIn()
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidMember(request.resource.data);
+      allow update: if isAdmin()
         && isValidMember(request.resource.data)
         && createdAtUnchanged();
+      allow delete: if isAdmin();
     }
 
     // =============================================================
     // House rules
     // =============================================================
     match /rules/{ruleId} {
-      allow read, delete: if isSignedIn();
-      allow create: if isSignedIn() && isValidRule(request.resource.data);
-      allow update: if isSignedIn()
+      allow read: if isSignedIn();
+      allow create: if isAdminOrParent() && isValidRule(request.resource.data);
+      allow update: if isAdminOrParent()
         && isValidRule(request.resource.data)
         && createdAtUnchanged();
+      allow delete: if isAdminOrParent();
     }
 
     // =============================================================

@@ -17,7 +17,13 @@ const router = createRouter({
     { path: '/calendar', name: 'calendar', component: () => import('@/views/CalendarView.vue') },
     { path: '/tasks', name: 'tasks', component: () => import('@/views/TasksView.vue') },
     { path: '/finance', name: 'finance', component: () => import('@/views/FinanceView.vue') },
-    { path: '/shopping', name: 'shopping', component: () => import('@/views/ShoppingView.vue') }
+    { path: '/shopping', name: 'shopping', component: () => import('@/views/ShoppingView.vue') },
+    {
+      path: '/users',
+      name: 'users',
+      component: () => import('@/views/UsersView.vue'),
+      meta: { requiresAdmin: true }
+    }
   ]
 })
 
@@ -38,6 +44,10 @@ router.beforeEach(async (to) => {
       name: 'login',
       query: to.fullPath === '/' ? {} : { redirect: to.fullPath }
     }
+  }
+
+  if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    return { name: 'dashboard' }
   }
 
   const familyStore = useFamilyStore()

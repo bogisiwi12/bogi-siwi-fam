@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { auth, db } from '@/firebase/config'
+import { ROLES, isBootstrapAdmin } from '@/config/roles'
 
 const googleProvider = new GoogleAuthProvider()
 
@@ -34,13 +35,13 @@ function friendlyError(error) {
   return messages[error?.code] || error?.message || 'Something went wrong. Please try again.'
 }
 
-function buildBaseProfile(firebaseUser) {
+function buildBaseProfile(firebaseUser, role = 'member') {
   return {
     uid: firebaseUser.uid,
-    name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Member',
+    name: (firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Member').slice(0, 60),
     email: firebaseUser.email || '',
     photoURL: firebaseUser.photoURL || '',
-    role: 'member'
+    role
   }
 }
 
@@ -58,36 +59,42 @@ export const useAuthStore = defineStore('auth', () => {
     () => profile.value?.name || user.value?.displayName || user.value?.email || 'Member'
   )
   const role = computed(() => profile.value?.role || 'member')
+  const isAdmin = computed(
+    () => role.value === 'admin' || isBootstrapAdmin(user.value?.email)
+  )
+  const isParent = computed(() => role.value === 'parent')
+  const canManageRules = computed(() => isAdmin.value || isParent.value)
   const initial = computed(() => displayName.value.charAt(0).toUpperCase())
 
   async function ensureProfile(firebaseUser) {
     const userRef = doc(db, 'users', firebaseUser.uid)
     const snapshot = await getDoc(userRef)
-    const base = buildBaseProfile(firebaseUser)
+    const bootstrapAdmin = isBootstrapAdmin(firebaseUser.email)
+    const base = buildBaseProfile(firebaseUser, bootstrapAdmin ? 'admin' : 'member')
 
     if (snapshot.exists()) {
       const data = snapshot.data()
+      const existingRole = ROLES.includes(data.role) ? data.role : 'member'
       const merged = {
         ...data,
         uid: firebaseUser.uid,
-        name: firebaseUser.displayName || data.name || base.name,
+        name: (firebaseUser.displayName || data.name || base.name).slice(0, 60),
         email: firebaseUser.email || data.email || '',
         photoURL: firebaseUser.photoURL || data.photoURL || '',
-        role: data.role || 'member'
+        role: bootstrapAdmin ? 'admin' : existingRole
       }
 
       profile.value = merged
 
-      await setDoc(
-        userRef,
-        {
-          name: merged.name,
-          email: merged.email,
-          photoURL: merged.photoURL,
-          lastLoginAt: serverTimestamp()
-        },
-        { merge: true }
-      )
+      const updates = {
+        name: merged.name,
+        email: merged.email,
+        photoURL: merged.photoURL,
+        lastLoginAt: serverTimestamp()
+      }
+      if (bootstrapAdmin) updates.role = 'admin'
+
+      await setDoc(userRef, updates, { merge: true })
     } else {
       profile.value = base
 
@@ -102,7 +109,10 @@ export const useAuthStore = defineStore('auth', () => {
   function syncProfile(firebaseUser) {
     return ensureProfile(firebaseUser).catch((err) => {
       console.error('Failed to sync Firestore profile:', err)
-      profile.value = buildBaseProfile(firebaseUser)
+      profile.value = buildBaseProfile(
+        firebaseUser,
+        isBootstrapAdmin(firebaseUser.email) ? 'admin' : 'member'
+      )
     })
   }
 
@@ -189,6 +199,9 @@ export const useAuthStore = defineStore('auth', () => {
     initialized,
     error,
     isAuthenticated,
+    isAdmin,
+    isParent,
+    canManageRules,
     displayName,
     role,
     initial,

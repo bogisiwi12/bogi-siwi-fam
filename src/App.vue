@@ -11,14 +11,19 @@ const router = useRouter()
 
 const isPublic = computed(() => !!route.meta.public)
 
-const navItems = [
+const allNavItems = [
   { path: '/', label: 'Dashboard', icon: '🏠' },
   { path: '/members', label: 'Members & Rules', icon: '👨‍👩‍👧‍👦' },
   { path: '/calendar', label: 'Calendar', icon: '📅' },
   { path: '/tasks', label: 'Tasks & Chores', icon: '✅' },
   { path: '/finance', label: 'Finance', icon: '💰' },
-  { path: '/shopping', label: 'Shopping', icon: '🛒' }
+  { path: '/shopping', label: 'Shopping', icon: '🛒' },
+  { path: '/users', label: 'User Management', icon: '🛡️', adminOnly: true }
 ]
+
+const navItems = computed(() =>
+  allNavItems.filter((item) => !item.adminOnly || auth.isAdmin)
+)
 
 async function handleLogout() {
   store.dispose()

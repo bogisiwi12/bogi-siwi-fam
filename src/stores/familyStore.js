@@ -149,9 +149,11 @@ export const useFamilyStore = defineStore('family', () => {
     error.value = ''
     try {
       await operation
+      return true
     } catch (err) {
       console.error(`${label} failed:`, err)
       error.value = err.message || `${label} failed.`
+      return false
     }
   }
 
