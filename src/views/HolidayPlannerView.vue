@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useHolidayStore } from '@/stores/holidayStore'
 import { useAuthStore } from '@/stores/authStore'
+import MarqueeText from '@/components/MarqueeText.vue'
 
 const store = useHolidayStore()
 const auth = useAuthStore()
@@ -38,6 +39,7 @@ const categories = [
   { value: 'stay', label: 'Stay', icon: '🏨', class: 'bg-cyan-100 text-cyan-700' },
   { value: 'adventure', label: 'Adventure', icon: '🎢', class: 'bg-emerald-100 text-emerald-700' },
   { value: 'shopping', label: 'Shopping', icon: '🛍️', class: 'bg-pink-100 text-pink-700' },
+  { value: 'mass', label: 'Mass', icon: '⛪', class: 'bg-indigo-100 text-indigo-700' },
   { value: 'other', label: 'Other', icon: '📌', class: 'bg-gray-100 text-gray-600' }
 ]
 
@@ -202,7 +204,10 @@ function statusMeta(status) {
 }
 
 function categoryMeta(value) {
-  return categories.find((option) => option.value === value) || categories[6]
+  return (
+    categories.find((option) => option.value === value) ||
+    categories.find((option) => option.value === 'other')
+  )
 }
 
 function dayActivities(dayId) {
@@ -964,9 +969,10 @@ onUnmounted(() => {
               </span>
 
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-bold text-gray-800">
-                  {{ day.title || `Day ${index + 1}` }}
-                </p>
+                <MarqueeText
+                  :text="day.title || `Day ${index + 1}`"
+                  class="text-sm font-bold text-gray-800"
+                />
                 <p class="truncate text-xs text-gray-400">
                   {{ formatDate(day.date) }} · {{ dayActivityCount(day.id) }} activities ·
                   {{ formatMoney(dayCost(day.id), selectedTrip.currency) }}

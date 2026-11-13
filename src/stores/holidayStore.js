@@ -26,6 +26,7 @@ const ACTIVITY_CATEGORIES = [
   'stay',
   'adventure',
   'shopping',
+  'mass',
   'other'
 ]
 
