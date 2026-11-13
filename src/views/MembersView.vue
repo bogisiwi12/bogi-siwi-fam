@@ -3,12 +3,17 @@ import { useFamilyStore } from '@/stores/familyStore'
 import { useAuthStore } from '@/stores/authStore'
 import { ref } from 'vue'
 import IconPicker from '@/components/IconPicker.vue'
+import { isDriveConfigured, uploadMemberPicture } from '@/services/googleDrive'
 
 const store = useFamilyStore()
 const auth = useAuthStore()
 
 const editingMember = ref(null)
-const editForm = ref({ name: '', avatar: '🙂', color: '#2563eb' })
+const editForm = ref({ name: '', avatar: '🙂', color: '#2563eb', photoURL: '' })
+const photoInputEl = ref(null)
+const uploadingPhoto = ref(false)
+const photoError = ref('')
+const driveReady = isDriveConfigured()
 
 const newRuleTitle = ref('')
 const newRuleDescription = ref('')
@@ -26,16 +31,20 @@ const ruleIcons = [
 function openEditMember(member) {
   if (!auth.isAdmin) return
   store.error = ''
+  photoError.value = ''
   editingMember.value = member
   editForm.value = {
     name: member.name,
     avatar: member.avatar || '🙂',
-    color: member.color || '#2563eb'
+    color: member.color || '#2563eb',
+    photoURL: member.photoURL || ''
   }
 }
 
 function closeEditMember() {
   editingMember.value = null
+  uploadingPhoto.value = false
+  photoError.value = ''
 }
 
 async function saveEditMember() {
@@ -44,9 +53,37 @@ async function saveEditMember() {
   const ok = await store.updateMember(editingMember.value.id, {
     name: editForm.value.name.trim(),
     avatar: editForm.value.avatar,
-    color: editForm.value.color
+    color: editForm.value.color,
+    photoURL: editForm.value.photoURL
   })
   if (ok) closeEditMember()
+}
+
+function pickPhoto() {
+  if (uploadingPhoto.value) return
+  photoInputEl.value?.click()
+}
+
+async function handlePhotoChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+
+  photoError.value = ''
+  uploadingPhoto.value = true
+  try {
+    const result = await uploadMemberPicture(file, editForm.value.name)
+    editForm.value.photoURL = result.url
+  } catch (err) {
+    photoError.value = err?.message || 'Could not upload the picture.'
+  } finally {
+    uploadingPhoto.value = false
+  }
+}
+
+function removePhoto() {
+  editForm.value.photoURL = ''
+  photoError.value = ''
 }
 
 async function moveMember(member, direction) {
@@ -106,7 +143,7 @@ async function handleAddRule() {
     </Transition>
 
     <div class="rounded-2xl border border-blue-100/70 bg-blue-50/60 px-4 py-3 text-xs font-medium text-blue-700 anim-fade-up" style="--delay: 40ms">
-      Family members are added automatically when their user role is set to Parent or Child. Admins can edit their name, icon, and color, and reorder them here.
+      Family members are added automatically when their user role is set to Parent or Child. Admins can edit their name, photo, icon, and color, and reorder them here.
     </div>
 
     <!-- Members -->
@@ -118,6 +155,11 @@ async function handleAddRule() {
       <div v-for="(member, i) in store.members" :key="member.id"
            class="group relative overflow-hidden bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-blue-50 text-center hover-lift anim-fade-up"
            :style="{ '--delay': `${i * 90}ms` }">
+        <template v-if="member.photoURL">
+          <div class="pointer-events-none absolute inset-0 bg-cover bg-center opacity-20"
+               :style="{ backgroundImage: `url('${member.photoURL}')` }" />
+          <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/60 via-white/80 to-white/95" />
+        </template>
         <div v-if="auth.isAdmin" class="absolute top-3 right-3 z-20 flex items-center gap-1">
           <button @click="moveMember(member, -1)" :disabled="i === 0" title="Move earlier"
                   class="flex h-7 w-7 items-center justify-center rounded-full border border-blue-100 bg-white/90 text-xs font-bold text-blue-500 shadow-sm backdrop-blur transition-all duration-300 hover:scale-110 hover:bg-blue-50 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100">
@@ -136,15 +178,19 @@ async function handleAddRule() {
         </div>
         <div class="pointer-events-none absolute inset-x-0 top-0 h-1.5 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
              :style="{ background: `linear-gradient(90deg, ${member.color}, transparent)` }" />
-        <div class="anim-float mx-auto w-16 h-16 rounded-full flex items-center justify-center text-3xl mb-3 ring-4 ring-white shadow-md transition-transform duration-300 group-hover:scale-110"
-             :style="{ backgroundColor: member.color + '20', animationDelay: `${i * 300}ms` }">
-          {{ member.avatar }}
+        <div class="relative z-10">
+          <div class="anim-float mx-auto mb-3 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full text-3xl shadow-md ring-4 ring-white transition-transform duration-300 group-hover:scale-110"
+               :style="member.photoURL
+                 ? { backgroundImage: `url('${member.photoURL}')`, backgroundSize: 'cover', backgroundPosition: 'center', animationDelay: `${i * 300}ms` }
+                 : { backgroundColor: member.color + '20', animationDelay: `${i * 300}ms` }">
+            <span v-if="!member.photoURL">{{ member.avatar }}</span>
+          </div>
+          <h3 class="font-bold text-gray-800">{{ member.name }}</h3>
+          <span class="inline-block mt-2 text-xs px-3 py-1 rounded-full font-semibold transition-transform duration-300 group-hover:scale-105"
+                :style="{ backgroundColor: member.color + '20', color: member.color }">
+            {{ member.role }}
+          </span>
         </div>
-        <h3 class="font-bold text-gray-800">{{ member.name }}</h3>
-        <span class="inline-block mt-2 text-xs px-3 py-1 rounded-full font-semibold transition-transform duration-300 group-hover:scale-105"
-              :style="{ backgroundColor: member.color + '20', color: member.color }">
-          {{ member.role }}
-        </span>
       </div>
     </div>
 
@@ -209,7 +255,7 @@ async function handleAddRule() {
             <div class="mb-5 flex items-start justify-between gap-3">
               <div>
                 <h2 class="text-lg font-extrabold text-gray-800">Edit family member</h2>
-                <p class="mt-1 text-xs text-gray-400">Update their name, icon, or color.</p>
+                <p class="mt-1 text-xs text-gray-400">Update their name, photo, icon, or color.</p>
               </div>
               <button type="button" @click="closeEditMember" title="Close"
                       class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
@@ -219,14 +265,39 @@ async function handleAddRule() {
 
             <form class="space-y-4" @submit.prevent="saveEditMember">
               <div class="flex items-center gap-4">
-                <div class="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full text-3xl ring-4 ring-white shadow-md"
-                     :style="{ backgroundColor: editForm.color + '20' }">
-                  {{ editForm.avatar }}
+                <div class="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full text-3xl shadow-md ring-4 ring-white"
+                     :style="editForm.photoURL
+                       ? { backgroundImage: `url('${editForm.photoURL}')`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                       : { backgroundColor: editForm.color + '20' }">
+                  <span v-if="!editForm.photoURL">{{ editForm.avatar }}</span>
                 </div>
                 <div class="min-w-0 flex-1">
                   <label class="mb-1.5 block text-xs font-semibold text-gray-600">Icon</label>
                   <IconPicker v-model="editForm.avatar" align="right" />
                 </div>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-xs font-semibold text-gray-600">Profile picture</label>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button type="button" :disabled="uploadingPhoto || !driveReady" @click="pickPhoto"
+                          class="inline-flex items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-600 transition-all duration-300 hover:bg-blue-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50">
+                    <span v-if="uploadingPhoto" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
+                    {{ uploadingPhoto ? 'Uploading…' : editForm.photoURL ? 'Replace photo' : 'Upload photo' }}
+                  </button>
+                  <button v-if="editForm.photoURL && !uploadingPhoto" type="button" @click="removePhoto"
+                          class="rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-500 transition-all duration-300 hover:bg-gray-50 active:scale-95">
+                    Remove
+                  </button>
+                </div>
+                <input ref="photoInputEl" type="file" accept="image/*" class="hidden" @change="handlePhotoChange" />
+                <p class="mt-1.5 text-[11px] text-gray-400">
+                  Uploads to Google Drive and shows as this member’s background picture.
+                </p>
+                <p v-if="!driveReady" class="mt-1 text-[11px] font-medium text-amber-600">
+                  Google Drive is not configured. Add VITE_CLIENT_ID and the picture folder ID to .env.
+                </p>
+                <p v-if="photoError" class="mt-1 text-[11px] font-medium text-red-500">{{ photoError }}</p>
               </div>
 
               <div>
@@ -251,8 +322,8 @@ async function handleAddRule() {
                         class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 transition-all duration-300 hover:bg-gray-50 active:scale-95">
                   Cancel
                 </button>
-                <button type="submit"
-                        class="rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200/60 transition-all duration-300 hover:opacity-90 hover:shadow-lg active:scale-95">
+                <button type="submit" :disabled="uploadingPhoto"
+                        class="rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200/60 transition-all duration-300 hover:opacity-90 hover:shadow-lg active:scale-95 disabled:cursor-not-allowed disabled:opacity-50">
                   Save changes
                 </button>
               </div>

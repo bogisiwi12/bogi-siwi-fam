@@ -24,6 +24,7 @@ rules_version = '2';
 //   - name: string (required, 1-60)
 //   - role: string (required, Parent or Child, matches user role)
 //   - avatar: string (required, 1-10)
+//   - photoURL: string (optional, empty or https URL, <=1000)
 //   - color: string (required, #RRGGBB)
 //   - order: int (optional, 0-1000) - display order set by admins
 //   - createdAt: timestamp (optional, immutable)
@@ -178,11 +179,14 @@ service cloud.firestore {
     }
 
     function isValidMember(data, userId) {
-      return data.keys().hasOnly(['userId', 'name', 'role', 'avatar', 'color', 'order', 'createdAt'])
+      return data.keys().hasOnly(['userId', 'name', 'role', 'avatar', 'photoURL', 'color', 'order', 'createdAt'])
         && data.userId == userId
         && data.name is string && data.name.size() > 0 && data.name.size() <= 60
         && data.role in ['Parent', 'Child']
         && data.avatar is string && data.avatar.size() > 0 && data.avatar.size() <= 10
+        && (!('photoURL' in data) || (data.photoURL is string
+          && data.photoURL.size() <= 1000
+          && (data.photoURL == '' || data.photoURL.matches('^https://.+'))))
         && isHexColor(data.color)
         && (!('order' in data) || (data.order is int && data.order >= 0 && data.order <= 1000));
     }
@@ -315,7 +319,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         && isValidMember(request.resource.data, memberId)
         && matchesFamilyUserRole(memberId, request.resource.data.role)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'role', 'avatar', 'color', 'order'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'role', 'avatar', 'photoURL', 'color', 'order'])
         && createdAtUnchanged();
       allow delete: if isAdmin();
     }
