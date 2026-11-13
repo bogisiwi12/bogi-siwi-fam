@@ -77,7 +77,7 @@ rules_version = '2';
 //   - title: string (required, 1-120)
 //   - location: string (required, <=120)
 //   - category: string (required, sightseeing/food/transport/stay/adventure/shopping/other)
-//   - cost: number (required, 0-1000000)
+//   - cost: number (required, 0-10000000)
 //   - notes: string (required, <=300)
 //   - createdAt: timestamp (optional, immutable)
 //
@@ -248,7 +248,7 @@ service cloud.firestore {
         && data.title is string && data.title.size() > 0 && data.title.size() <= 120
         && data.location is string && data.location.size() <= 120
         && data.category in ['sightseeing', 'food', 'transport', 'stay', 'adventure', 'shopping', 'other']
-        && data.cost is number && data.cost >= 0 && data.cost <= 1000000
+        && data.cost is number && data.cost >= 0 && data.cost <= 10000000
         && data.notes is string && data.notes.size() <= 300;
     }
 

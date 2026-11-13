@@ -15,6 +15,9 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 
+const MAX_TRIP_BUDGET = 10000000
+const MAX_ACTIVITY_COST = 10000000
+
 const TRIP_STATUSES = ['planning', 'confirmed', 'completed']
 const ACTIVITY_CATEGORIES = [
   'sightseeing',
@@ -185,9 +188,14 @@ export const useHolidayStore = defineStore('holiday', () => {
 
   async function addTrip(payload) {
     error.value = ''
+    const trip = normalizeTrip(payload)
+    if (trip.budget > MAX_TRIP_BUDGET) {
+      error.value = `Budget cannot exceed ${MAX_TRIP_BUDGET.toLocaleString()}.`
+      return null
+    }
     try {
       const ref = await addDoc(collection(db, 'itineraries'), {
-        ...normalizeTrip(payload),
+        ...trip,
         createdAt: serverTimestamp()
       })
       return ref.id
@@ -198,10 +206,12 @@ export const useHolidayStore = defineStore('holiday', () => {
   }
 
   function updateTrip(id, payload) {
-    return persist(
-      updateDoc(doc(db, 'itineraries', id), normalizeTrip(payload)),
-      'Updating trip'
-    )
+    const trip = normalizeTrip(payload)
+    if (trip.budget > MAX_TRIP_BUDGET) {
+      error.value = `Budget cannot exceed ${MAX_TRIP_BUDGET.toLocaleString()}.`
+      return Promise.resolve(false)
+    }
+    return persist(updateDoc(doc(db, 'itineraries', id), trip), 'Updating trip')
   }
 
   async function removeTrip(id) {
@@ -266,11 +276,16 @@ export const useHolidayStore = defineStore('holiday', () => {
 
   async function addActivity(tripId, dayId, payload) {
     error.value = ''
+    const activity = normalizeActivity(payload)
+    if (activity.cost > MAX_ACTIVITY_COST) {
+      error.value = `Activity cost cannot exceed ${MAX_ACTIVITY_COST.toLocaleString()}.`
+      return null
+    }
     try {
       const ref = await addDoc(
         collection(db, 'itineraries', tripId, 'days', dayId, 'activities'),
         {
-          ...normalizeActivity(payload),
+          ...activity,
           createdAt: serverTimestamp()
         }
       )
@@ -282,10 +297,15 @@ export const useHolidayStore = defineStore('holiday', () => {
   }
 
   function updateActivity(tripId, dayId, activityId, payload) {
+    const activity = normalizeActivity(payload)
+    if (activity.cost > MAX_ACTIVITY_COST) {
+      error.value = `Activity cost cannot exceed ${MAX_ACTIVITY_COST.toLocaleString()}.`
+      return Promise.resolve(false)
+    }
     return persist(
       updateDoc(
         doc(db, 'itineraries', tripId, 'days', dayId, 'activities', activityId),
-        normalizeActivity(payload)
+        activity
       ),
       'Updating activity'
     )
