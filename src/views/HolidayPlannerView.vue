@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useHolidayStore } from '@/stores/holidayStore'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -14,6 +14,13 @@ const showTripForm = ref(false)
 const editingTripId = ref(null)
 const formError = ref('')
 const dayError = ref('')
+const editingDay = ref(null)
+const dayNameInput = ref('')
+const dayNameError = ref('')
+const dayNameInputEl = ref(null)
+const editingActivity = ref(null)
+const activityEditError = ref('')
+const activityEditTitleEl = ref(null)
 const copied = ref(false)
 
 const coverOptions = ['✈️', '🏖️', '🏔️', '🗺️', '🏝️', '🎡', '🗼', '🏰', '🚢', '🚗']
@@ -49,6 +56,15 @@ const tripForm = reactive({
 
 const dayForm = reactive({ date: '', title: '' })
 const activityForm = reactive({
+  time: '09:00',
+  title: '',
+  location: '',
+  category: 'sightseeing',
+  cost: 0,
+  notes: ''
+})
+
+const activityEditForm = reactive({
   time: '09:00',
   title: '',
   location: '',
@@ -376,6 +392,39 @@ async function removeDay(day) {
   if (ok && expandedDayId.value === day.id) expandedDayId.value = null
 }
 
+function openDayEdit(day) {
+  if (!canManage.value) return
+  editingDay.value = day
+  dayNameInput.value = day.title || ''
+  dayNameError.value = ''
+  nextTick(() => dayNameInputEl.value?.focus())
+}
+
+function closeDayEdit() {
+  editingDay.value = null
+  dayNameInput.value = ''
+  dayNameError.value = ''
+}
+
+async function saveDayName() {
+  if (!canManage.value || !selectedTrip.value || !editingDay.value) return
+  const title = dayNameInput.value.trim()
+  if (!title) {
+    dayNameError.value = 'Day name cannot be empty.'
+    return
+  }
+
+  const ok = await store.updateDay(selectedTrip.value.id, editingDay.value.id, {
+    date: editingDay.value.date,
+    title
+  })
+  if (!ok) {
+    dayNameError.value = store.error
+    return
+  }
+  closeDayEdit()
+}
+
 async function addActivity(dayId) {
   if (!canManage.value) return
   if (!selectedTrip.value) return
@@ -396,6 +445,42 @@ function removeActivity(dayId, activity) {
   if (!canManage.value) return
   if (!selectedTrip.value) return
   return store.removeActivity(selectedTrip.value.id, dayId, activity.id)
+}
+
+function openActivityEdit(dayId, activity) {
+  if (!canManage.value) return
+  editingActivity.value = { dayId, activity }
+  activityEditForm.time = activity.time || '09:00'
+  activityEditForm.title = activity.title || ''
+  activityEditForm.location = activity.location || ''
+  activityEditForm.category = activity.category || 'sightseeing'
+  activityEditForm.cost = Number(activity.cost) || 0
+  activityEditForm.notes = activity.notes || ''
+  activityEditError.value = ''
+  nextTick(() => activityEditTitleEl.value?.focus())
+}
+
+function closeActivityEdit() {
+  editingActivity.value = null
+  activityEditError.value = ''
+}
+
+async function saveActivity() {
+  if (!canManage.value || !selectedTrip.value || !editingActivity.value) return
+  if (!activityEditForm.title.trim()) {
+    activityEditError.value = 'Activity title is required.'
+    return
+  }
+
+  const { dayId, activity } = editingActivity.value
+  const ok = await store.updateActivity(selectedTrip.value.id, dayId, activity.id, {
+    ...activityEditForm
+  })
+  if (!ok) {
+    activityEditError.value = store.error
+    return
+  }
+  closeActivityEdit()
 }
 
 async function removeTrip() {
@@ -902,6 +987,15 @@ onUnmounted(() => {
             <button
               v-if="canManage"
               type="button"
+              class="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-blue-400 transition-colors hover:bg-blue-50 hover:text-blue-600 no-print"
+              @click="openDayEdit(day)"
+            >
+              Edit
+            </button>
+
+            <button
+              v-if="canManage"
+              type="button"
               class="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 no-print"
               @click="removeDay(day)"
             >
@@ -948,14 +1042,22 @@ onUnmounted(() => {
                       {{ formatMoney(activity.cost, selectedTrip.currency) }}
                     </span>
                     <span v-else class="text-xs text-gray-400">Free</span>
-                    <button
-                      v-if="canManage"
-                      type="button"
-                      class="rounded-lg px-2 py-1 text-[11px] font-semibold text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 no-print"
-                      @click="removeActivity(day.id, activity)"
-                    >
-                      Remove
-                    </button>
+                    <div v-if="canManage" class="flex items-center gap-1 no-print">
+                      <button
+                        type="button"
+                        class="rounded-lg px-2 py-1 text-[11px] font-semibold text-blue-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                        @click="openActivityEdit(day.id, activity)"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded-lg px-2 py-1 text-[11px] font-semibold text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        @click="removeActivity(day.id, activity)"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1216,6 +1318,184 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="editingDay && canManage"
+        class="fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-6"
+      >
+        <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" @click="closeDayEdit" />
+
+        <div
+          class="relative w-full rounded-t-3xl bg-white p-5 shadow-2xl anim-scale-in sm:max-w-md sm:rounded-3xl sm:p-6"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-extrabold text-gray-800">Edit day name</h2>
+              <p class="mt-0.5 text-sm text-gray-500">{{ formatDate(editingDay.date) }}</p>
+            </div>
+            <button
+              type="button"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-90"
+              aria-label="Close"
+              @click="closeDayEdit"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form class="mt-5 space-y-4" @submit.prevent="saveDayName">
+            <div>
+              <label class="text-xs font-bold uppercase tracking-wide text-gray-400">Day name</label>
+              <input
+                ref="dayNameInputEl"
+                v-model="dayNameInput"
+                maxlength="100"
+                placeholder="e.g. Old town & street food"
+                class="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                @keyup.esc="closeDayEdit"
+              />
+            </div>
+
+            <p v-if="dayNameError" class="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">
+              {{ dayNameError }}
+            </p>
+
+            <div class="flex gap-3 pt-1">
+              <button
+                type="button"
+                class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
+                @click="closeDayEdit"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="flex-1 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-200/60 transition-all hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95"
+              >
+                Save name
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="editingActivity && canManage"
+        class="fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-6"
+      >
+        <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" @click="closeActivityEdit" />
+
+        <div
+          class="relative max-h-[94vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl anim-scale-in sm:max-w-lg sm:rounded-3xl sm:p-6"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-extrabold text-gray-800">Edit activity</h2>
+              <p class="mt-0.5 text-sm text-gray-500">Update this stop without removing it.</p>
+            </div>
+            <button
+              type="button"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-90"
+              aria-label="Close"
+              @click="closeActivityEdit"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form class="mt-5 space-y-3" @submit.prevent="saveActivity">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400">Time</label>
+                <input
+                  v-model="activityEditForm.time"
+                  type="time"
+                  class="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400">Category</label>
+                <select
+                  v-model="activityEditForm.category"
+                  class="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option v-for="cat in categories" :key="cat.value" :value="cat.value">
+                    {{ cat.icon }} {{ cat.label }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-bold uppercase tracking-wide text-gray-400">Activity</label>
+              <input
+                ref="activityEditTitleEl"
+                v-model="activityEditForm.title"
+                maxlength="120"
+                placeholder="What are you doing?"
+                class="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                @keyup.esc="closeActivityEdit"
+              />
+            </div>
+
+            <div>
+              <label class="text-xs font-bold uppercase tracking-wide text-gray-400">Location</label>
+              <input
+                v-model="activityEditForm.location"
+                maxlength="120"
+                placeholder="Location / address"
+                class="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400">Cost</label>
+                <input
+                  v-model="activityEditForm.cost"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  class="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400">Notes</label>
+                <input
+                  v-model="activityEditForm.notes"
+                  maxlength="300"
+                  placeholder="Optional"
+                  class="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </div>
+
+            <p v-if="activityEditError" class="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">
+              {{ activityEditError }}
+            </p>
+
+            <div class="flex gap-3 pt-1">
+              <button
+                type="button"
+                class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
+                @click="closeActivityEdit"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="flex-1 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-200/60 transition-all hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95"
+              >
+                Save changes
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </Teleport>
