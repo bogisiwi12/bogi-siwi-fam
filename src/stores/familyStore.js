@@ -11,7 +11,8 @@ import {
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 
@@ -90,7 +91,12 @@ export const useFamilyStore = defineStore('family', () => {
       q,
       (snapshot) => {
         const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
-        target.value = name === 'members' ? items.filter((member) => member.userId === member.id) : items
+        if (name === 'members') {
+          const filtered = items.filter((member) => member.userId === member.id)
+          target.value = sortMembers(filtered)
+        } else {
+          target.value = items
+        }
         markLoaded(name)
       },
       (err) => {
@@ -99,6 +105,17 @@ export const useFamilyStore = defineStore('family', () => {
         markLoaded(name)
       }
     )
+  }
+
+  function sortMembers(items) {
+    return [...items].sort((a, b) => {
+      const aOrder = Number.isFinite(a.order) ? a.order : Number.MAX_SAFE_INTEGER
+      const bOrder = Number.isFinite(b.order) ? b.order : Number.MAX_SAFE_INTEGER
+      if (aOrder !== bOrder) return aOrder - bOrder
+      const aCreated = a.createdAt?.toMillis?.() ?? 0
+      const bCreated = b.createdAt?.toMillis?.() ?? 0
+      return aCreated - bCreated
+    })
   }
 
   async function seedFamilyDefaults() {
@@ -165,6 +182,15 @@ export const useFamilyStore = defineStore('family', () => {
   // --- Family member presentation ---
   function updateMember(id, data) {
     return persist(updateDoc(doc(db, 'members', id), data), 'Updating member')
+  }
+
+  function reorderMembers(orderedIds) {
+    if (!orderedIds.length) return Promise.resolve(false)
+    const batch = writeBatch(db)
+    orderedIds.forEach((id, index) => {
+      batch.update(doc(db, 'members', id), { order: index })
+    })
+    return persist(batch.commit(), 'Updating member order')
   }
 
   // --- Rules ---
@@ -252,7 +278,7 @@ export const useFamilyStore = defineStore('family', () => {
     loading, error,
     pendingTasks, shoppingProgress,
     init, dispose,
-    updateMember,
+    updateMember, reorderMembers,
     addRule, updateRule, removeRule,
     addTask, toggleTask, updateTask, removeTask,
     addShoppingItem, toggleShoppingItem, updateShoppingItem, removeShoppingItem

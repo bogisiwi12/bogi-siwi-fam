@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { useFamilyStore } from '@/stores/familyStore'
 import { useAuthStore } from '@/stores/authStore'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const store = useFamilyStore()
 const auth = useAuthStore()
@@ -16,6 +17,7 @@ const allNavItems = [
   { path: '/members', label: 'Members & Rules', shortLabel: 'Members', icon: '👨‍👩‍👧‍👦' },
   { path: '/tasks', label: 'Tasks & Chores', shortLabel: 'Tasks', icon: '✅' },
   { path: '/shopping', label: 'Shopping', shortLabel: 'Shopping', icon: '🛒' },
+  { path: '/holiday', label: 'Holiday Planner', shortLabel: 'Holiday', icon: '✈️' },
   {
     path: '/users',
     label: 'User Management',
@@ -80,8 +82,12 @@ async function handleLogout() {
           <h1 class="text-gradient text-xl font-extrabold tracking-tight">Bogi-Siwi Fam</h1>
           <div class="flex items-center gap-2">
             <div class="flex items-center gap-2 rounded-full bg-blue-50/80 py-1 pl-1 pr-2">
-              <img v-if="auth.user?.photoURL" :src="auth.user.photoURL" alt="" class="h-7 w-7 rounded-full object-cover" />
-              <span v-else class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-xs font-bold text-white">{{ auth.initial }}</span>
+              <UserAvatar
+                :src="auth.profile?.photoURL || auth.user?.photoURL || ''"
+                :name="auth.displayName"
+                :seed="auth.user?.uid || auth.displayName"
+                class="h-7 w-7"
+              />
               <span class="max-w-[90px] truncate text-xs font-semibold text-gray-600">{{ auth.displayName }}</span>
             </div>
             <button @click="handleLogout" title="Sign out"
@@ -121,8 +127,12 @@ async function handleLogout() {
 
           <div class="mt-auto space-y-4 border-t border-gray-100 pt-6">
             <div class="flex items-center gap-3 rounded-xl bg-blue-50/70 p-3">
-              <img v-if="auth.user?.photoURL" :src="auth.user.photoURL" alt="" class="h-9 w-9 rounded-full object-cover" />
-              <span v-else class="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-sm font-bold text-white">{{ auth.initial }}</span>
+              <UserAvatar
+                :src="auth.profile?.photoURL || auth.user?.photoURL || ''"
+                :name="auth.displayName"
+                :seed="auth.user?.uid || auth.displayName"
+                class="h-9 w-9"
+              />
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold text-gray-700">{{ auth.displayName }}</p>
                 <p class="text-[11px] capitalize text-gray-400">{{ auth.role }}</p>

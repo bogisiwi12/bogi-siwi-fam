@@ -1,8 +1,11 @@
 <script setup>
 import { useFamilyStore } from '@/stores/familyStore'
+import { useAuthStore } from '@/stores/authStore'
 import { ref, computed } from 'vue'
 
 const store = useFamilyStore()
+const auth = useAuthStore()
+const canManage = computed(() => auth.isAdmin || auth.isParent)
 const newName = ref('')
 const newQty = ref(1)
 const newCat = ref('Produce')
@@ -15,6 +18,7 @@ const progress = computed(() =>
 )
 
 function handleAdd() {
+  if (!canManage.value) return
   if (!newName.value.trim()) return
   store.addShoppingItem(newName.value, newQty.value, newCat.value)
   newName.value = ''
@@ -35,6 +39,12 @@ function handleAdd() {
       </span>
     </div>
 
+    <!-- View only notice -->
+    <div v-if="!canManage"
+         class="rounded-2xl border border-amber-100 bg-amber-50/70 px-4 py-3 text-xs font-semibold text-amber-700 anim-fade-up">
+      👀 View only — ask an admin or parent to manage the shopping list.
+    </div>
+
     <!-- Progress -->
     <div class="bg-white/80 backdrop-blur rounded-2xl p-5 shadow-sm border border-blue-50 anim-fade-up" style="--delay: 60ms">
       <div class="flex items-center justify-between mb-2">
@@ -48,7 +58,7 @@ function handleAdd() {
     </div>
 
     <!-- Add Item -->
-    <div class="bg-white/80 backdrop-blur rounded-2xl p-4 shadow-sm border border-blue-50 anim-fade-up" style="--delay: 120ms">
+    <div v-if="canManage" class="bg-white/80 backdrop-blur rounded-2xl p-4 shadow-sm border border-blue-50 anim-fade-up" style="--delay: 120ms">
       <div class="flex flex-col sm:flex-row gap-3">
         <input v-model="newName" placeholder="Item name"
                class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300"
@@ -77,18 +87,23 @@ function handleAdd() {
       <div v-for="item in store.shoppingList" :key="item.id"
            class="group flex items-center gap-4 p-4 hover:bg-gray-50/70 transition-all duration-300"
            :class="item.done ? 'opacity-50' : ''">
-        <button @click="store.toggleShoppingItem(item.id)"
+        <button v-if="canManage" @click="store.toggleShoppingItem(item.id)"
                 class="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all duration-300 hover:scale-110 active:scale-90"
                 :class="item.done ? 'bg-green-500 border-green-500 text-white' : 'border-blue-300 hover:border-blue-500 hover:bg-blue-50'">
           <span v-if="item.done" class="text-xs anim-pop">✓</span>
         </button>
+        <span v-else
+              class="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+              :class="item.done ? 'bg-green-500 border-green-500 text-white' : 'border-gray-200 bg-gray-50'">
+          <span v-if="item.done" class="text-xs">✓</span>
+        </span>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-medium transition-all duration-300" :class="item.done ? 'line-through text-gray-400' : 'text-gray-700'">
             {{ item.name }}
           </p>
           <p class="text-xs text-gray-400">{{ item.category }} · Qty: {{ item.quantity }}</p>
         </div>
-        <button @click="store.removeShoppingItem(item.id)"
+        <button v-if="canManage" @click="store.removeShoppingItem(item.id)"
                 class="text-xs font-semibold text-red-400 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 transition-all duration-300 active:scale-90">
           Remove
         </button>

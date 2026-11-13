@@ -49,10 +49,36 @@ async function saveEditMember() {
   if (ok) closeEditMember()
 }
 
-function handleAddRule() {
+async function moveMember(member, direction) {
+  if (!auth.isAdmin) return
+  const list = [...store.members]
+  const index = list.findIndex((item) => item.id === member.id)
+  const target = index + direction
+  if (index < 0 || target < 0 || target >= list.length) return
+
+  const [moved] = list.splice(index, 1)
+  list.splice(target, 0, moved)
+  await store.reorderMembers(list.map((item) => item.id))
+}
+
+function parseRuleDescription(description) {
+  return (description || '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
+    .filter(Boolean)
+}
+
+function isRuleList(description) {
+  const text = (description || '').trim()
+  if (!text) return false
+  return /[\r\n]/.test(text) || /^\s*(?:[-*•]|\d+[.)])\s+/.test(text)
+}
+
+async function handleAddRule() {
   if (!auth.canManageRules) return
   if (!newRuleTitle.value.trim()) return
-  store.addRule(newRuleTitle.value, newRuleDescription.value, newRuleIcon.value)
+  const ok = await store.addRule(newRuleTitle.value, newRuleDescription.value, newRuleIcon.value)
+  if (!ok) return
   newRuleTitle.value = ''
   newRuleDescription.value = ''
   newRuleIcon.value = '📌'
@@ -80,7 +106,7 @@ function handleAddRule() {
     </Transition>
 
     <div class="rounded-2xl border border-blue-100/70 bg-blue-50/60 px-4 py-3 text-xs font-medium text-blue-700 anim-fade-up" style="--delay: 40ms">
-      Family members are added automatically when their user role is set to Parent or Child. Admins can edit their name, icon, and color here.
+      Family members are added automatically when their user role is set to Parent or Child. Admins can edit their name, icon, and color, and reorder them here.
     </div>
 
     <!-- Members -->
@@ -93,6 +119,14 @@ function handleAddRule() {
            class="group relative overflow-hidden bg-white/80 backdrop-blur rounded-2xl p-6 shadow-sm border border-blue-50 text-center hover-lift anim-fade-up"
            :style="{ '--delay': `${i * 90}ms` }">
         <div v-if="auth.isAdmin" class="absolute top-3 right-3 z-20 flex items-center gap-1">
+          <button @click="moveMember(member, -1)" :disabled="i === 0" title="Move earlier"
+                  class="flex h-7 w-7 items-center justify-center rounded-full border border-blue-100 bg-white/90 text-xs font-bold text-blue-500 shadow-sm backdrop-blur transition-all duration-300 hover:scale-110 hover:bg-blue-50 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100">
+            ↑
+          </button>
+          <button @click="moveMember(member, 1)" :disabled="i === store.members.length - 1" title="Move later"
+                  class="flex h-7 w-7 items-center justify-center rounded-full border border-blue-100 bg-white/90 text-xs font-bold text-blue-500 shadow-sm backdrop-blur transition-all duration-300 hover:scale-110 hover:bg-blue-50 active:scale-90 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100">
+            ↓
+          </button>
           <button @click="openEditMember(member)" title="Edit member"
                   class="flex h-8 w-8 items-center justify-center rounded-full border border-blue-100 bg-white/90 text-blue-500 shadow-sm backdrop-blur transition-all duration-300 hover:scale-110 hover:bg-blue-50 active:scale-90">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -120,17 +154,22 @@ function handleAddRule() {
         <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-sm">➕</span>
         <h2 class="text-sm font-bold text-gray-700">Add house rule</h2>
       </div>
-      <form class="grid grid-cols-1 gap-3 sm:grid-cols-[72px_minmax(0,1fr)_minmax(0,1.2fr)_auto]"
-            @submit.prevent="handleAddRule">
-        <IconPicker v-model="newRuleIcon" :icons="ruleIcons" align="right" label="Choose rule icon" />
-        <input v-model="newRuleTitle" placeholder="Rule title"
-               class="w-full min-w-0 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300" />
-        <input v-model="newRuleDescription" placeholder="Short description"
-               class="w-full min-w-0 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300" />
-        <button type="submit"
-                class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold shadow-md shadow-blue-200/60 transition-all duration-300 hover:opacity-90 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95">
-          Add
-        </button>
+      <form class="space-y-3" @submit.prevent="handleAddRule">
+        <div class="flex flex-col gap-3 sm:flex-row">
+          <IconPicker v-model="newRuleIcon" :icons="ruleIcons" align="right" label="Choose rule icon" class="sm:w-[72px]" />
+          <input v-model="newRuleTitle" maxlength="80" placeholder="Rule title"
+                 class="w-full min-w-0 flex-1 px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300" />
+          <button type="submit"
+                  class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-sm font-semibold shadow-md shadow-blue-200/60 transition-all duration-300 hover:opacity-90 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95">
+            Add
+          </button>
+        </div>
+        <div>
+          <textarea v-model="newRuleDescription" rows="3" maxlength="1000"
+                    placeholder="Details — add one item per line, e.g. - Brush teeth before bed"
+                    class="w-full resize-y px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all duration-300" />
+          <p class="mt-1 text-[11px] text-gray-400">One item per line will display as a list.</p>
+        </div>
       </form>
     </div>
 
@@ -152,7 +191,11 @@ function handleAddRule() {
           <span class="text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-6">{{ rule.icon }}</span>
           <div>
             <h3 class="font-semibold text-gray-800 text-sm">{{ rule.title }}</h3>
-            <p class="text-xs text-gray-500 mt-0.5">{{ rule.description }}</p>
+            <ul v-if="isRuleList(rule.description)"
+                class="mt-1 list-disc space-y-0.5 pl-4 text-xs text-gray-500 marker:text-blue-400">
+              <li v-for="(line, lineIndex) in parseRuleDescription(rule.description)" :key="lineIndex">{{ line }}</li>
+            </ul>
+            <p v-else-if="rule.description" class="text-xs text-gray-500 mt-0.5">{{ rule.description }}</p>
           </div>
         </div>
       </div>

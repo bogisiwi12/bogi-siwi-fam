@@ -1,8 +1,11 @@
 <script setup>
 import { useFamilyStore } from '@/stores/familyStore'
+import { useAuthStore } from '@/stores/authStore'
 import { computed } from 'vue'
 
 const store = useFamilyStore()
+const auth = useAuthStore()
+const canManage = computed(() => auth.isAdmin || auth.isParent)
 
 const recentTasks = computed(() =>
   store.pendingTasks.slice(0, 4)
@@ -61,8 +64,10 @@ const today = new Date().toLocaleDateString('en-US', {
           <div v-for="(task, i) in recentTasks" :key="task.id"
                class="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors duration-300 anim-fade-up"
                :style="{ '--delay': `${240 + i * 70}ms` }">
-            <button @click="store.toggleTask(task.id)"
+            <button v-if="canManage" @click="store.toggleTask(task.id)"
                     class="w-5 h-5 rounded-full border-2 border-blue-300 flex-shrink-0 transition-all duration-300 hover:border-blue-500 hover:bg-blue-100 hover:scale-110 active:scale-90" />
+            <span v-else
+                  class="w-5 h-5 rounded-full border-2 border-gray-200 bg-gray-50 flex-shrink-0" />
             <div class="flex-1 min-w-0">
               <p class="text-sm text-gray-700 truncate">{{ task.title }}</p>
               <p class="text-xs text-gray-400">Assigned to {{ task.assignee }}</p>

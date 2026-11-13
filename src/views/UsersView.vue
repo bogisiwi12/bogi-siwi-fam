@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/authStore'
 import { useUserStore } from '@/stores/userStore'
 import { ROLES, ROLE_META } from '@/config/roles'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const auth = useAuthStore()
 const store = useUserStore()
@@ -28,10 +29,6 @@ const filteredUsers = computed(() => {
 
 function roleMeta(role) {
   return ROLE_META[role] || ROLE_META.member
-}
-
-function userInitial(user) {
-  return (user.name || user.email || '?').charAt(0).toUpperCase()
 }
 
 function formatLastLogin(value) {
@@ -112,12 +109,12 @@ onUnmounted(() => store.dispose())
         <div v-for="user in filteredUsers" :key="user.id"
              class="group flex flex-col gap-3 p-4 transition-colors duration-300 hover:bg-gray-50/70 sm:flex-row sm:items-center sm:gap-4">
           <div class="flex min-w-0 flex-1 items-center gap-3">
-            <img v-if="user.photoURL" :src="user.photoURL" alt=""
-                 class="h-11 w-11 flex-shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm" />
-            <span v-else
-                  class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-sm font-bold text-white ring-2 ring-white shadow-sm">
-              {{ userInitial(user) }}
-            </span>
+            <UserAvatar
+              :src="user.photoURL"
+              :name="user.name || user.email"
+              :seed="user.id"
+              class="h-11 w-11 ring-2 ring-white shadow-sm"
+            />
             <div class="min-w-0">
               <p class="flex items-center gap-2 truncate text-sm font-semibold text-gray-800">
                 {{ user.name || 'Unnamed user' }}

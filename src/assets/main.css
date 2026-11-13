@@ -45,6 +45,12 @@
   }
 }
 
+@media (max-width: 1023.98px) {
+  html {
+    font-size: 14px;
+  }
+}
+
 /* ---------- Keyframes ---------- */
 @keyframes fade-up {
   from {
@@ -260,5 +266,36 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Print ---------- */
+@media print {
+  aside,
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .print-surface {
+    break-inside: avoid;
+    background: #fff !important;
+    border-color: #e5e7eb !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .anim-fade-up,
+  .anim-scale-in {
+    animation: none !important;
   }
 }

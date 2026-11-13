@@ -25,16 +25,18 @@ rules_version = '2';
 //   - role: string (required, Parent or Child, matches user role)
 //   - avatar: string (required, 1-10)
 //   - color: string (required, #RRGGBB)
+//   - order: int (optional, 0-1000) - display order set by admins
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: rules/{ruleId}
 //   Access: read = any signed-in user; write = admin or parent
 //   - title: string (required, 1-80)
-//   - description: string (required, <=200)
+//   - description: string (required, <=1000)
 //   - icon: string (required, 1-10)
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: tasks/{taskId}
+//   Access: read = any signed-in user; write = admin or parent
 //   - title: string (required, 1-100)
 //   - assignee: string (required, 1-60)
 //   - done: bool (required)
@@ -42,10 +44,41 @@ rules_version = '2';
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: shoppingItems/{itemId}
+//   Access: read = any signed-in user; write = admin or parent
 //   - name: string (required, 1-80)
 //   - quantity: int (required, 1-1000)
 //   - category: string (required, 1-40)
 //   - done: bool (required)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: itineraries/{tripId}
+//   Access: read = any signed-in user; write = admin or parent
+//   - title: string (required, 1-100)
+//   - destination: string (required, 1-120)
+//   - startDate: string (required, YYYY-MM-DD)
+//   - endDate: string (required, YYYY-MM-DD, >= startDate)
+//   - travelers: int (required, 1-50)
+//   - budget: number (required, 0-10000000)
+//   - currency: string (required, 1-8)
+//   - status: string (required, planning/confirmed/completed)
+//   - cover: string (required, 1-10)
+//   - notes: string (required, <=1000)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: itineraries/{tripId}/days/{dayId}
+//   Access: read = any signed-in user; write = admin or parent
+//   - date: string (required, YYYY-MM-DD)
+//   - title: string (required, 1-100)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: itineraries/{tripId}/days/{dayId}/activities/{activityId}
+//   Access: read = any signed-in user; write = admin or parent
+//   - time: string (required, <=10)
+//   - title: string (required, 1-120)
+//   - location: string (required, <=120)
+//   - category: string (required, sightseeing/food/transport/stay/adventure/shopping/other)
+//   - cost: number (required, 0-1000000)
+//   - notes: string (required, <=300)
 //   - createdAt: timestamp (optional, immutable)
 //
 // ===============================================================
@@ -110,6 +143,19 @@ service cloud.firestore {
         && (value == '' || value.matches('^https://.+'));
     }
 
+    // Format-only check for YYYY-MM-DD strings (logic is checked where relevant).
+    function isValidIsoDate(value) {
+      return value is string && value.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function tripPath(tripId) {
+      return /databases/$(database)/documents/itineraries/$(tripId);
+    }
+
+    function dayPath(tripId, dayId) {
+      return /databases/$(database)/documents/itineraries/$(tripId)/days/$(dayId);
+    }
+
     // createdAt (when present) may not change after creation.
     function createdAtUnchanged() {
       return !('createdAt' in resource.data)
@@ -132,12 +178,13 @@ service cloud.firestore {
     }
 
     function isValidMember(data, userId) {
-      return data.keys().hasOnly(['userId', 'name', 'role', 'avatar', 'color', 'createdAt'])
+      return data.keys().hasOnly(['userId', 'name', 'role', 'avatar', 'color', 'order', 'createdAt'])
         && data.userId == userId
         && data.name is string && data.name.size() > 0 && data.name.size() <= 60
         && data.role in ['Parent', 'Child']
         && data.avatar is string && data.avatar.size() > 0 && data.avatar.size() <= 10
-        && isHexColor(data.color);
+        && isHexColor(data.color)
+        && (!('order' in data) || (data.order is int && data.order >= 0 && data.order <= 1000));
     }
 
     function matchesFamilyUserRole(userId, role) {
@@ -151,7 +198,7 @@ service cloud.firestore {
     function isValidRule(data) {
       return data.keys().hasOnly(['title', 'description', 'icon', 'createdAt'])
         && data.title is string && data.title.size() > 0 && data.title.size() <= 80
-        && data.description is string && data.description.size() <= 200
+        && data.description is string && data.description.size() <= 1000
         && data.icon is string && data.icon.size() > 0 && data.icon.size() <= 10;
     }
 
@@ -169,6 +216,40 @@ service cloud.firestore {
         && data.quantity is int && data.quantity >= 1 && data.quantity <= 1000
         && data.category is string && data.category.size() > 0 && data.category.size() <= 40
         && data.done is bool;
+    }
+
+    function isValidItinerary(data) {
+      return data.keys().hasOnly([
+          'title', 'destination', 'startDate', 'endDate', 'travelers',
+          'budget', 'currency', 'status', 'cover', 'notes', 'createdAt'
+        ])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 100
+        && data.destination is string && data.destination.size() > 0 && data.destination.size() <= 120
+        && isValidIsoDate(data.startDate)
+        && isValidIsoDate(data.endDate)
+        && data.endDate >= data.startDate
+        && data.travelers is int && data.travelers >= 1 && data.travelers <= 50
+        && data.budget is number && data.budget >= 0 && data.budget <= 10000000
+        && data.currency is string && data.currency.size() > 0 && data.currency.size() <= 8
+        && data.status in ['planning', 'confirmed', 'completed']
+        && data.cover is string && data.cover.size() > 0 && data.cover.size() <= 10
+        && data.notes is string && data.notes.size() <= 1000;
+    }
+
+    function isValidItineraryDay(data) {
+      return data.keys().hasOnly(['date', 'title', 'createdAt'])
+        && isValidIsoDate(data.date)
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 100;
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasOnly(['time', 'title', 'location', 'category', 'cost', 'notes', 'createdAt'])
+        && data.time is string && data.time.size() <= 10
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+        && data.location is string && data.location.size() <= 120
+        && data.category in ['sightseeing', 'food', 'transport', 'stay', 'adventure', 'shopping', 'other']
+        && data.cost is number && data.cost >= 0 && data.cost <= 1000000
+        && data.notes is string && data.notes.size() <= 300;
     }
 
     // =============================================================
@@ -234,7 +315,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         && isValidMember(request.resource.data, memberId)
         && matchesFamilyUserRole(memberId, request.resource.data.role)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'role', 'avatar', 'color'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'role', 'avatar', 'color', 'order'])
         && createdAtUnchanged();
       allow delete: if isAdmin();
     }
@@ -255,22 +336,59 @@ service cloud.firestore {
     // Tasks & chores
     // =============================================================
     match /tasks/{taskId} {
-      allow read, delete: if isSignedIn();
-      allow create: if isSignedIn() && isValidTask(request.resource.data);
-      allow update: if isSignedIn()
+      allow read: if isSignedIn();
+      allow create: if isAdminOrParent() && isValidTask(request.resource.data);
+      allow update: if isAdminOrParent()
         && isValidTask(request.resource.data)
         && createdAtUnchanged();
+      allow delete: if isAdminOrParent();
     }
 
     // =============================================================
     // Shopping list items
     // =============================================================
     match /shoppingItems/{itemId} {
-      allow read, delete: if isSignedIn();
-      allow create: if isSignedIn() && isValidShoppingItem(request.resource.data);
-      allow update: if isSignedIn()
+      allow read: if isSignedIn();
+      allow create: if isAdminOrParent() && isValidShoppingItem(request.resource.data);
+      allow update: if isAdminOrParent()
         && isValidShoppingItem(request.resource.data)
         && createdAtUnchanged();
+      allow delete: if isAdminOrParent();
+    }
+
+    // =============================================================
+    // Holiday itineraries (trip -> days -> activities)
+    // =============================================================
+    match /itineraries/{tripId} {
+      allow read: if isSignedIn();
+      allow create: if isAdminOrParent() && isValidItinerary(request.resource.data);
+      allow update: if isAdminOrParent()
+        && isValidItinerary(request.resource.data)
+        && createdAtUnchanged();
+      allow delete: if isAdminOrParent();
+
+      match /days/{dayId} {
+        allow read: if isSignedIn();
+        allow create: if isAdminOrParent()
+          && exists(tripPath(tripId))
+          && isValidItineraryDay(request.resource.data);
+        allow update: if isAdminOrParent()
+          && isValidItineraryDay(request.resource.data)
+          && createdAtUnchanged();
+        allow delete: if isAdminOrParent();
+
+        match /activities/{activityId} {
+          allow read: if isSignedIn();
+          allow create: if isAdminOrParent()
+            && exists(tripPath(tripId))
+            && exists(dayPath(tripId, dayId))
+            && isValidActivity(request.resource.data);
+          allow update: if isAdminOrParent()
+            && isValidActivity(request.resource.data)
+            && createdAtUnchanged();
+          allow delete: if isAdminOrParent();
+        }
+      }
     }
   }
 }
