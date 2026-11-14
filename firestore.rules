@@ -19,7 +19,7 @@ rules_version = '2';
 //   - seededAt: timestamp (optional)
 //
 // Collection: members/{memberId}
-//   Access: read = any signed-in user; write = admin only
+//   Access: read = public (guest allowed); write = admin only
 //   - userId: string (required, matches memberId and users document)
 //   - name: string (required, 1-60)
 //   - role: string (required, Parent or Child, matches user role)
@@ -30,14 +30,14 @@ rules_version = '2';
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: rules/{ruleId}
-//   Access: read = any signed-in user; write = admin or parent
+//   Access: read = public (guest allowed); write = admin or parent
 //   - title: string (required, 1-80)
 //   - description: string (required, <=1000)
 //   - icon: string (required, 1-10)
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: tasks/{taskId}
-//   Access: read = any signed-in user; write = admin or parent
+//   Access: read = public (guest allowed); write = admin or parent
 //   - title: string (required, 1-100)
 //   - assignee: string (required, 1-60)
 //   - done: bool (required)
@@ -45,7 +45,7 @@ rules_version = '2';
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: shoppingItems/{itemId}
-//   Access: read = any signed-in user; write = admin or parent
+//   Access: read = public (guest allowed); write = admin or parent
 //   - name: string (required, 1-80)
 //   - quantity: int (required, 1-1000)
 //   - category: string (required, 1-40)
@@ -53,7 +53,7 @@ rules_version = '2';
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: itineraries/{tripId}
-//   Access: read = any signed-in user; write = admin or parent
+//   Access: read = public (guest allowed); write = admin or parent
 //   - title: string (required, 1-100)
 //   - destination: string (required, 1-120)
 //   - startDate: string (required, YYYY-MM-DD)
@@ -67,13 +67,13 @@ rules_version = '2';
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: itineraries/{tripId}/days/{dayId}
-//   Access: read = any signed-in user; write = admin or parent
+//   Access: read = public (guest allowed); write = admin or parent
 //   - date: string (required, YYYY-MM-DD)
 //   - title: string (required, 1-100)
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: itineraries/{tripId}/days/{dayId}/activities/{activityId}
-//   Access: read = any signed-in user; write = admin or parent
+//   Access: read = public (guest allowed); write = admin or parent
 //   - time: string (required, <=10)
 //   - title: string (required, 1-120)
 //   - location: string (required, <=120)
@@ -300,7 +300,7 @@ service cloud.firestore {
     // Family metadata (one-time seeding marker)
     // =============================================================
     match /family/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn() && request.resource.data.seeded == true;
       allow update: if isSignedIn()
         && resource.data.seeded == true
@@ -312,7 +312,7 @@ service cloud.firestore {
     // Family members
     // =============================================================
     match /members/{memberId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isAdmin()
         && isValidMember(request.resource.data, memberId)
         && matchesFamilyUserRole(memberId, request.resource.data.role);
@@ -328,7 +328,7 @@ service cloud.firestore {
     // House rules
     // =============================================================
     match /rules/{ruleId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isAdminOrParent() && isValidRule(request.resource.data);
       allow update: if isAdminOrParent()
         && isValidRule(request.resource.data)
@@ -340,7 +340,7 @@ service cloud.firestore {
     // Tasks & chores
     // =============================================================
     match /tasks/{taskId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isAdminOrParent() && isValidTask(request.resource.data);
       allow update: if isAdminOrParent()
         && isValidTask(request.resource.data)
@@ -352,7 +352,7 @@ service cloud.firestore {
     // Shopping list items
     // =============================================================
     match /shoppingItems/{itemId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isAdminOrParent() && isValidShoppingItem(request.resource.data);
       allow update: if isAdminOrParent()
         && isValidShoppingItem(request.resource.data)
@@ -364,7 +364,7 @@ service cloud.firestore {
     // Holiday itineraries (trip -> days -> activities)
     // =============================================================
     match /itineraries/{tripId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isAdminOrParent() && isValidItinerary(request.resource.data);
       allow update: if isAdminOrParent()
         && isValidItinerary(request.resource.data)
@@ -372,7 +372,7 @@ service cloud.firestore {
       allow delete: if isAdminOrParent();
 
       match /days/{dayId} {
-        allow read: if isSignedIn();
+        allow read: if true;
         allow create: if isAdminOrParent()
           && exists(tripPath(tripId))
           && isValidItineraryDay(request.resource.data);
@@ -382,7 +382,7 @@ service cloud.firestore {
         allow delete: if isAdminOrParent();
 
         match /activities/{activityId} {
-          allow read: if isSignedIn();
+          allow read: if true;
           allow create: if isAdminOrParent()
             && exists(tripPath(tripId))
             && exists(dayPath(tripId, dayId))

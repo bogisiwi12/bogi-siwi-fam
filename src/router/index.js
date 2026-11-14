@@ -43,13 +43,6 @@ router.beforeEach(async (to) => {
     return true
   }
 
-  if (!authStore.isAuthenticated) {
-    return {
-      name: 'login',
-      query: to.fullPath === '/' ? {} : { redirect: to.fullPath }
-    }
-  }
-
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
     return { name: 'dashboard' }
   }

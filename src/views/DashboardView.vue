@@ -23,7 +23,7 @@ const today = new Date().toLocaleDateString('en-US', {
     <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 anim-fade-up">
       <div>
         <h1 class="text-2xl lg:text-3xl font-extrabold text-gray-800">
-          Welcome back! <span class="inline-block anim-float">👋</span>
+          {{ auth.isGuest ? 'Welcome!' : 'Welcome back!' }} <span class="inline-block anim-float">👋</span>
         </h1>
         <p class="text-gray-500 mt-1">Here's what's happening with the family today.</p>
       </div>

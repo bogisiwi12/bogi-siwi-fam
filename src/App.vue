@@ -54,10 +54,20 @@ watch(
   }
 )
 
+watch(
+  () => auth.isAuthenticated,
+  (value, previous) => {
+    if (value && !previous) {
+      store.dispose()
+      store.init()
+    }
+  }
+)
+
 async function handleLogout() {
   store.dispose()
   await auth.logout()
-  router.push({ name: 'login' })
+  router.push({ name: 'dashboard' })
 }
 </script>
 
@@ -81,21 +91,27 @@ async function handleLogout() {
         <div class="flex items-center justify-between px-4 py-3">
           <h1 class="text-gradient text-xl font-extrabold tracking-tight">Bogi-Siwi Fam</h1>
           <div class="flex items-center gap-2">
-            <div class="flex items-center gap-2 rounded-full bg-blue-50/80 py-1 pl-1 pr-2">
-              <UserAvatar
-                :src="auth.profile?.photoURL || auth.user?.photoURL || ''"
-                :name="auth.displayName"
-                :seed="auth.user?.uid || auth.displayName"
-                class="h-7 w-7"
-              />
-              <span class="max-w-[90px] truncate text-xs font-semibold text-gray-600">{{ auth.displayName }}</span>
-            </div>
-            <button @click="handleLogout" title="Sign out"
-                    class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-90">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
+            <template v-if="auth.isAuthenticated">
+              <div class="flex items-center gap-2 rounded-full bg-blue-50/80 py-1 pl-1 pr-2">
+                <UserAvatar
+                  :src="auth.profile?.photoURL || auth.user?.photoURL || ''"
+                  :name="auth.displayName"
+                  :seed="auth.user?.uid || auth.displayName"
+                  class="h-7 w-7"
+                />
+                <span class="max-w-[90px] truncate text-xs font-semibold text-gray-600">{{ auth.displayName }}</span>
+              </div>
+              <button @click="handleLogout" title="Sign out"
+                      class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-90">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </template>
+            <RouterLink v-else to="/login"
+                        class="rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm shadow-blue-200/70 transition-all hover:opacity-90 active:scale-95">
+              Sign in
+            </RouterLink>
           </div>
         </div>
       </header>
@@ -126,7 +142,7 @@ async function handleLogout() {
           </nav>
 
           <div class="mt-auto space-y-4 border-t border-gray-100 pt-6">
-            <div class="flex items-center gap-3 rounded-xl bg-blue-50/70 p-3">
+            <div v-if="auth.isAuthenticated" class="flex items-center gap-3 rounded-xl bg-blue-50/70 p-3">
               <UserAvatar
                 :src="auth.profile?.photoURL || auth.user?.photoURL || ''"
                 :name="auth.displayName"
@@ -143,6 +159,15 @@ async function handleLogout() {
                   <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </button>
+            </div>
+
+            <div v-else class="rounded-xl bg-blue-50/70 p-3 text-center">
+              <p class="text-xs font-semibold text-gray-600">Viewing as guest</p>
+              <p class="mt-0.5 text-[11px] text-gray-400">Sign in to make changes.</p>
+              <RouterLink to="/login"
+                          class="mt-2 flex items-center justify-center rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-200/70 transition-all hover:opacity-90 active:scale-95">
+                Sign in
+              </RouterLink>
             </div>
 
             <div>
@@ -162,6 +187,14 @@ async function handleLogout() {
         <!-- Main Content -->
         <main class="flex-1 min-w-0 pb-24 lg:pb-8">
           <div class="w-full max-w-7xl mx-auto px-4 py-6 lg:py-8">
+            <div v-if="auth.isGuest"
+                 class="mb-4 flex flex-col gap-2 rounded-2xl border border-blue-100/70 bg-blue-50/70 px-4 py-3 text-xs font-medium text-blue-700 sm:flex-row sm:items-center sm:justify-between">
+              <span>👀 You're viewing as a guest — read-only access. Sign in to make changes.</span>
+              <RouterLink to="/login"
+                          class="self-start rounded-lg bg-white px-3 py-1.5 font-semibold text-blue-600 shadow-sm transition-all hover:bg-blue-100 active:scale-95 sm:self-auto">
+                Sign in
+              </RouterLink>
+            </div>
             <RouterView v-slot="{ Component, route: currentRoute }">
               <Transition name="page" mode="out-in">
                 <component :is="Component" :key="currentRoute.path" />

@@ -55,6 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
   let initPromise = null
 
   const isAuthenticated = computed(() => !!user.value)
+  const isGuest = computed(() => !user.value)
   const displayName = computed(
     () => profile.value?.name || user.value?.displayName || user.value?.email || 'Member'
   )
@@ -199,6 +200,7 @@ export const useAuthStore = defineStore('auth', () => {
     initialized,
     error,
     isAuthenticated,
+    isGuest,
     isAdmin,
     isParent,
     canManageRules,

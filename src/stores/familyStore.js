@@ -15,6 +15,7 @@ import {
   writeBatch
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
+import { useAuthStore } from '@/stores/authStore'
 
 const defaultRules = [
   { id: 'screen-time', title: 'Screen time limit', description: 'Max 2 hours on weekdays', icon: '📱' },
@@ -152,10 +153,13 @@ export const useFamilyStore = defineStore('family', () => {
     initPromise = (async () => {
       loading.value = true
 
-      try {
-        await seedFamilyDefaults()
-      } catch (err) {
-        console.error('Failed to seed default family data:', err)
+      const auth = useAuthStore()
+      if (auth.isAuthenticated) {
+        try {
+          await seedFamilyDefaults()
+        } catch (err) {
+          console.error('Failed to seed default family data:', err)
+        }
       }
 
       for (const [name, target] of bindings) {
