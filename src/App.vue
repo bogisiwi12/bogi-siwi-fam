@@ -19,6 +19,13 @@ const allNavItems = [
   { path: '/shopping', label: 'Shopping', shortLabel: 'Shopping', icon: '🛒' },
   { path: '/holiday', label: 'Holiday Planner', shortLabel: 'Holiday', icon: '✈️' },
   {
+    path: '/finance',
+    label: 'Finance',
+    shortLabel: 'Finance',
+    icon: '💰',
+    managerOnly: true
+  },
+  {
     path: '/users',
     label: 'User Management',
     shortLabel: 'Users',
@@ -28,7 +35,11 @@ const allNavItems = [
 ]
 
 const navItems = computed(() =>
-  allNavItems.filter((item) => !item.adminOnly || auth.isAdmin)
+  allNavItems.filter((item) => {
+    if (item.adminOnly && !auth.isAdmin) return false
+    if (item.managerOnly && !auth.isAdmin && !auth.isParent) return false
+    return true
+  })
 )
 
 const mobileNav = ref(null)

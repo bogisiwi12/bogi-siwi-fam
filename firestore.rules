@@ -53,6 +53,24 @@ rules_version = '2';
 //   - done: bool (required)
 //   - createdAt: timestamp (optional, immutable)
 //
+// Collection: wallets/{walletId}
+//   Access: read/write = admin or parent only (private family finances)
+//   - name: string (required, 1-60)
+//   - type: string (required, cash/bank/ewallet/savings/credit/other)
+//   - initialBalance: number (required, -1000000000000..1000000000000)
+//   - creditLimit: number (required, 0..1000000000000; >0 for credit cards)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: transactions/{transactionId}
+//   Access: read/write = admin or parent only (private family finances)
+//   - type: string (required, income/expense)
+//   - amount: number (required, >0, <=1000000000000)
+//   - category: string (required, 1-40)
+//   - date: string (required, YYYY-MM-DD)
+//   - note: string (required, <=300)
+//   - walletId: string (required, 1-128)
+//   - createdAt: timestamp (optional, immutable)
+//
 // Collection: itineraries/{tripId}
 //   Access: read = public (guest allowed); write = admin or parent
 //   - title: string (required, 1-100)
@@ -81,6 +99,7 @@ rules_version = '2';
 //   - category: string (required, sightseeing/food/transport/stay/adventure/shopping/mass/other)
 //   - cost: number (required, 0-10000000)
 //   - notes: string (required, <=300)
+//   - imageUrl: string (optional, empty or https URL, <=1500)
 //   - createdAt: timestamp (optional, immutable)
 //
 // ===============================================================
@@ -226,6 +245,30 @@ service cloud.firestore {
         && data.done is bool;
     }
 
+    function isValidTransaction(data) {
+      return data.keys().hasOnly(['type', 'amount', 'category', 'date', 'note', 'walletId', 'createdAt'])
+        && data.type in ['income', 'expense']
+        && data.amount is number && data.amount > 0 && data.amount <= 1000000000000
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 40
+        && isValidIsoDate(data.date)
+        && data.note is string && data.note.size() <= 300
+        && data.walletId is string && data.walletId.size() > 0 && data.walletId.size() <= 128;
+    }
+
+    function isValidWallet(data) {
+      return data.keys().hasOnly(['name', 'type', 'initialBalance', 'creditLimit', 'createdAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 60
+        && data.type in ['cash', 'bank', 'ewallet', 'savings', 'credit', 'other']
+        && data.initialBalance is number
+        && data.initialBalance >= -1000000000000
+        && data.initialBalance <= 1000000000000
+        && data.creditLimit is number
+        && data.creditLimit >= 0
+        && data.creditLimit <= 1000000000000
+        && (data.type != 'credit' || data.creditLimit > 0)
+        && (data.type != 'credit' || data.initialBalance >= 0);
+    }
+
     function isValidItinerary(data) {
       return data.keys().hasOnly([
           'title', 'destination', 'startDate', 'endDate', 'travelers',
@@ -251,13 +294,16 @@ service cloud.firestore {
     }
 
     function isValidActivity(data) {
-      return data.keys().hasOnly(['time', 'title', 'location', 'category', 'cost', 'notes', 'createdAt'])
+      return data.keys().hasOnly(['time', 'title', 'location', 'category', 'cost', 'notes', 'imageUrl', 'createdAt'])
         && data.time is string && data.time.size() <= 10
         && data.title is string && data.title.size() > 0 && data.title.size() <= 120
         && data.location is string && data.location.size() <= 120
         && data.category in ['sightseeing', 'food', 'transport', 'stay', 'adventure', 'shopping', 'mass', 'other']
         && data.cost is number && data.cost >= 0 && data.cost <= 10000000
-        && data.notes is string && data.notes.size() <= 300;
+        && data.notes is string && data.notes.size() <= 300
+        && (!('imageUrl' in data) || (data.imageUrl is string
+          && data.imageUrl.size() <= 1500
+          && (data.imageUrl == '' || data.imageUrl.matches('^https://.+'))));
     }
 
     // =============================================================
@@ -362,6 +408,30 @@ service cloud.firestore {
       allow create: if isAdminOrParent() && isValidShoppingItem(request.resource.data);
       allow update: if isAdminOrParent()
         && isValidShoppingItem(request.resource.data)
+        && createdAtUnchanged();
+      allow delete: if isAdminOrParent();
+    }
+
+    // =============================================================
+    // Finance wallets (private: admin or parent only)
+    // =============================================================
+    match /wallets/{walletId} {
+      allow read: if isAdminOrParent();
+      allow create: if isAdminOrParent() && isValidWallet(request.resource.data);
+      allow update: if isAdminOrParent()
+        && isValidWallet(request.resource.data)
+        && createdAtUnchanged();
+      allow delete: if isAdminOrParent();
+    }
+
+    // =============================================================
+    // Finance transactions (private: admin or parent only)
+    // =============================================================
+    match /transactions/{transactionId} {
+      allow read: if isAdminOrParent();
+      allow create: if isAdminOrParent() && isValidTransaction(request.resource.data);
+      allow update: if isAdminOrParent()
+        && isValidTransaction(request.resource.data)
         && createdAtUnchanged();
       allow delete: if isAdminOrParent();
     }

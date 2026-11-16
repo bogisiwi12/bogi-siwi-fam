@@ -3,10 +3,15 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useHolidayStore } from '@/stores/holidayStore'
 import { useAuthStore } from '@/stores/authStore'
 import MarqueeText from '@/components/MarqueeText.vue'
+import {
+  isItineraryDriveConfigured,
+  uploadItineraryImage
+} from '@/services/googleDrive'
 
 const store = useHolidayStore()
 const auth = useAuthStore()
 const canManage = computed(() => auth.isAdmin || auth.isParent)
+const itineraryDriveReady = isItineraryDriveConfigured()
 
 const selectedTripId = ref(null)
 const expandedDayId = ref(null)
@@ -63,7 +68,8 @@ const activityForm = reactive({
   location: '',
   category: 'sightseeing',
   cost: 0,
-  notes: ''
+  notes: '',
+  imageUrl: ''
 })
 
 const activityEditForm = reactive({
@@ -72,8 +78,16 @@ const activityEditForm = reactive({
   location: '',
   category: 'sightseeing',
   cost: 0,
-  notes: ''
+  notes: '',
+  imageUrl: ''
 })
+
+const activityFormError = ref('')
+const uploadingActivityImage = ref(false)
+const uploadingActivityEditImage = ref(false)
+const activityImageInput = ref(null)
+const activityEditImageInput = ref(null)
+const viewingImage = ref(null)
 
 const selectedTrip = computed(
   () => store.trips.find((trip) => trip.id === selectedTripId.value) || null
@@ -355,10 +369,69 @@ function openActivityForm(dayId) {
   activityForm.category = 'sightseeing'
   activityForm.cost = 0
   activityForm.notes = ''
+  activityForm.imageUrl = ''
+  activityFormError.value = ''
 }
 
 function closeActivityForm() {
   activityFormDayId.value = null
+  activityFormError.value = ''
+}
+
+async function uploadActivityImage(file, form, errorRef) {
+  if (!file) return
+  if (!itineraryDriveReady) {
+    errorRef.value = 'Itinerary image uploads are not configured.'
+    return
+  }
+  errorRef.value = ''
+  try {
+    const result = await uploadItineraryImage(file, form.title || 'activity')
+    form.imageUrl = result.url
+  } catch (err) {
+    errorRef.value = err?.message || 'Could not upload the image.'
+  }
+}
+
+function pickActivityImage() {
+  activityImageInput.value?.click()
+}
+
+function pickActivityEditImage() {
+  activityEditImageInput.value?.click()
+}
+
+async function handleActivityImageChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  uploadingActivityImage.value = true
+  try {
+    await uploadActivityImage(file, activityForm, activityFormError)
+  } finally {
+    uploadingActivityImage.value = false
+  }
+}
+
+async function handleActivityEditImageChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  uploadingActivityEditImage.value = true
+  try {
+    await uploadActivityImage(file, activityEditForm, activityEditError)
+  } finally {
+    uploadingActivityEditImage.value = false
+  }
+}
+
+function openImage(url, title) {
+  if (!url) return
+  viewingImage.value = { url, title }
+}
+
+function closeImage() {
+  viewingImage.value = null
 }
 
 async function addDay() {
@@ -444,6 +517,8 @@ async function addActivity(dayId) {
   activityForm.location = ''
   activityForm.notes = ''
   activityForm.cost = 0
+  activityForm.imageUrl = ''
+  activityFormError.value = ''
 }
 
 function removeActivity(dayId, activity) {
@@ -461,6 +536,7 @@ function openActivityEdit(dayId, activity) {
   activityEditForm.category = activity.category || 'sightseeing'
   activityEditForm.cost = Number(activity.cost) || 0
   activityEditForm.notes = activity.notes || ''
+  activityEditForm.imageUrl = activity.imageUrl || ''
   activityEditError.value = ''
   nextTick(() => activityEditTitleEl.value?.focus())
 }
@@ -579,11 +655,17 @@ function printItinerary() {
   }, 150)
 }
 
+function handleKeydown(event) {
+  if (event.key === 'Escape') closeImage()
+}
+
 onMounted(() => {
   store.init()
+  window.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
   store.dispose()
 })
 </script>
@@ -1066,6 +1148,26 @@ onUnmounted(() => {
                     </div>
                   </div>
                 </div>
+
+                <button
+                  v-if="activity.imageUrl"
+                  type="button"
+                  class="group/img relative shrink-0 self-start overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+                  :title="`View ${activity.title} fullscreen`"
+                  @click="openImage(activity.imageUrl, activity.title)"
+                >
+                  <img
+                    :src="activity.imageUrl"
+                    :alt="activity.title"
+                    loading="lazy"
+                    class="h-20 w-20 object-cover sm:h-28 sm:w-32"
+                  />
+                  <span
+                    class="pointer-events-none absolute inset-0 flex items-center justify-center bg-gray-900/0 text-lg text-white opacity-0 transition-all duration-300 group-hover/img:bg-gray-900/30 group-hover/img:opacity-100"
+                  >
+                    ⤢
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -1133,6 +1235,53 @@ onUnmounted(() => {
                   maxlength="300"
                   placeholder="Notes (optional)"
                   class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div class="rounded-xl border border-dashed border-blue-200 bg-white/70 p-2">
+                <div class="flex items-center gap-3">
+                  <div v-if="activityForm.imageUrl" class="relative shrink-0">
+                    <img
+                      :src="activityForm.imageUrl"
+                      alt="Activity preview"
+                      class="h-14 w-20 rounded-lg object-cover"
+                    />
+                    <button
+                      type="button"
+                      class="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900/70 text-[10px] font-bold text-white"
+                      aria-label="Remove image"
+                      @click="activityForm.imageUrl = ''"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <button
+                      type="button"
+                      :disabled="uploadingActivityImage || !itineraryDriveReady"
+                      class="inline-flex items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-[11px] font-semibold text-blue-600 transition-all hover:bg-blue-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      @click="pickActivityImage"
+                    >
+                      <span
+                        v-if="uploadingActivityImage"
+                        class="h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600"
+                      />
+                      {{ uploadingActivityImage ? 'Uploading…' : activityForm.imageUrl ? 'Replace photo' : 'Upload photo' }}
+                    </button>
+                    <p class="mt-1 text-[10px] text-gray-400">Optional — saved to Google Drive.</p>
+                    <p v-if="!itineraryDriveReady" class="text-[10px] font-medium text-amber-600">
+                      Itinerary image folder is not configured.
+                    </p>
+                    <p v-if="activityFormError" class="text-[10px] font-medium text-red-500">
+                      {{ activityFormError }}
+                    </p>
+                  </div>
+                </div>
+                <input
+                  ref="activityImageInput"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="handleActivityImageChange"
                 />
               </div>
               <div class="flex gap-2 pt-1">
@@ -1485,6 +1634,54 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <div class="rounded-xl border border-dashed border-blue-200 bg-blue-50/30 p-2">
+              <div class="flex items-center gap-3">
+                <div v-if="activityEditForm.imageUrl" class="relative shrink-0">
+                  <img
+                    :src="activityEditForm.imageUrl"
+                    alt="Activity preview"
+                    class="h-14 w-20 rounded-lg object-cover"
+                  />
+                  <button
+                    type="button"
+                    class="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900/70 text-[10px] font-bold text-white"
+                    aria-label="Remove image"
+                    @click="activityEditForm.imageUrl = ''"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <label class="text-xs font-bold uppercase tracking-wide text-gray-400">Photo (optional)</label>
+                  <div class="mt-1">
+                    <button
+                      type="button"
+                      :disabled="uploadingActivityEditImage || !itineraryDriveReady"
+                      class="inline-flex items-center gap-1.5 rounded-lg border border-blue-100 bg-white px-3 py-1.5 text-[11px] font-semibold text-blue-600 transition-all hover:bg-blue-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      @click="pickActivityEditImage"
+                    >
+                      <span
+                        v-if="uploadingActivityEditImage"
+                        class="h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600"
+                      />
+                      {{ uploadingActivityEditImage ? 'Uploading…' : activityEditForm.imageUrl ? 'Replace photo' : 'Upload photo' }}
+                    </button>
+                  </div>
+                  <p class="mt-1 text-[10px] text-gray-400">Saved to Google Drive and shown with this activity.</p>
+                  <p v-if="!itineraryDriveReady" class="text-[10px] font-medium text-amber-600">
+                    Itinerary image folder is not configured.
+                  </p>
+                </div>
+              </div>
+              <input
+                ref="activityEditImageInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="handleActivityEditImageChange"
+              />
+            </div>
+
             <p v-if="activityEditError" class="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">
               {{ activityEditError }}
             </p>
@@ -1506,6 +1703,36 @@ onUnmounted(() => {
             </div>
           </form>
         </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="viewingImage"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/90 p-4 backdrop-blur-sm"
+        @click="closeImage"
+      >
+        <button
+          type="button"
+          class="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-lg text-white transition-all hover:bg-white/20 active:scale-90"
+          aria-label="Close image"
+          @click.stop="closeImage"
+        >
+          ✕
+        </button>
+        <figure class="flex max-h-full max-w-6xl flex-col items-center" @click.stop>
+          <img
+            :src="viewingImage.url"
+            :alt="viewingImage.title"
+            class="max-h-[85vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl"
+          />
+          <figcaption
+            v-if="viewingImage.title"
+            class="mt-3 text-center text-sm font-semibold text-white/80"
+          >
+            {{ viewingImage.title }}
+          </figcaption>
+        </figure>
       </div>
     </Teleport>
   </div>

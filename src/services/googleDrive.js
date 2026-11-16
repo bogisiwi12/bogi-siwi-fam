@@ -1,11 +1,13 @@
 const CLIENT_ID = import.meta.env.VITE_CLIENT_ID
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY
-const FOLDER_ID = import.meta.env.VITE_GOOGLE_DRIVE_MEMBER_PICTURE_FOLDER_ID
+const MEMBER_FOLDER_ID = import.meta.env.VITE_GOOGLE_DRIVE_MEMBER_PICTURE_FOLDER_ID
+const ITINERARY_FOLDER_ID = import.meta.env.VITE_GOOGLE_DRIVE_ITINERARY_IMAGES_FOLDER_ID
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const GIS_SRC = 'https://accounts.google.com/gsi/client'
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024
 const MAX_DIMENSION = 1024
+const MAX_ITINERARY_DIMENSION = 1600
 
 let gisPromise = null
 let tokenClient = null
@@ -14,7 +16,11 @@ let cachedToken = ''
 let tokenExpiresAt = 0
 
 export function isDriveConfigured() {
-  return Boolean(CLIENT_ID && FOLDER_ID)
+  return Boolean(CLIENT_ID && MEMBER_FOLDER_ID)
+}
+
+export function isItineraryDriveConfigured() {
+  return Boolean(CLIENT_ID && ITINERARY_FOLDER_ID)
 }
 
 function loadGis() {
@@ -128,9 +134,9 @@ function loadImage(file) {
   })
 }
 
-async function prepareImage(file) {
+async function prepareImage(file, maxDimension = MAX_DIMENSION) {
   const image = await loadImage(file)
-  const scale = Math.min(1, MAX_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight))
+  const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight))
   const width = Math.max(1, Math.round(image.naturalWidth * scale))
   const height = Math.max(1, Math.round(image.naturalHeight * scale))
 
@@ -147,13 +153,13 @@ async function prepareImage(file) {
   return blob
 }
 
-function slug(value) {
+function slug(value, fallback = 'member') {
   return (
-    String(value || 'member')
+    String(value || fallback)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
-      .slice(0, 40) || 'member'
+      .slice(0, 40) || fallback
   )
 }
 
@@ -177,27 +183,18 @@ async function deleteFile(fileId, token) {
   }
 }
 
-/**
- * Uploads an image to the configured Google Drive folder and makes it
- * publicly readable so it can be used as a member profile picture.
- */
-export async function uploadMemberPicture(file, memberName = 'member') {
-  if (!isDriveConfigured()) {
-    throw new Error(
-      'Google Drive uploads are not configured. Set VITE_CLIENT_ID and VITE_GOOGLE_DRIVE_MEMBER_PICTURE_FOLDER_ID in .env.'
-    )
-  }
+async function uploadImage(file, folderId, filePrefix, maxDimension) {
   if (!file) throw new Error('No image selected.')
   if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.')
   if (file.size > MAX_SOURCE_BYTES) throw new Error('Image is too large (maximum 20 MB).')
 
   const token = await getAccessToken()
-  const image = await prepareImage(file)
+  const image = await prepareImage(file, maxDimension)
 
   const metadata = {
-    name: `${slug(memberName)}-${Date.now()}.jpg`,
+    name: `${filePrefix}-${Date.now()}.jpg`,
     mimeType: 'image/jpeg',
-    parents: [FOLDER_ID]
+    parents: [folderId]
   }
 
   const form = new FormData()
@@ -239,4 +236,37 @@ export async function uploadMemberPicture(file, memberName = 'member') {
     name: uploaded.name,
     url: `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(uploaded.id)}?alt=media&key=${encodeURIComponent(API_KEY || '')}`
   }
+}
+
+/**
+ * Uploads an image to the configured Google Drive folder and makes it
+ * publicly readable so it can be used as a member profile picture.
+ */
+export async function uploadMemberPicture(file, memberName = 'member') {
+  if (!isDriveConfigured()) {
+    throw new Error(
+      'Google Drive uploads are not configured. Set VITE_CLIENT_ID and VITE_GOOGLE_DRIVE_MEMBER_PICTURE_FOLDER_ID in .env.'
+    )
+  }
+
+  return uploadImage(file, MEMBER_FOLDER_ID, slug(memberName), MAX_DIMENSION)
+}
+
+/**
+ * Uploads an itinerary activity image to the configured Google Drive folder
+ * and makes it publicly readable so it can be shown in the trip plan.
+ */
+export async function uploadItineraryImage(file, label = 'activity') {
+  if (!isItineraryDriveConfigured()) {
+    throw new Error(
+      'Itinerary image uploads are not configured. Set VITE_CLIENT_ID and VITE_GOOGLE_DRIVE_ITINERARY_IMAGES_FOLDER_ID in .env.'
+    )
+  }
+
+  return uploadImage(
+    file,
+    ITINERARY_FOLDER_ID,
+    `itinerary-${slug(label, 'activity')}`,
+    MAX_ITINERARY_DIMENSION
+  )
 }

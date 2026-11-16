@@ -66,7 +66,8 @@ function normalizeActivity(payload) {
     location: toText(payload.location).slice(0, 120),
     category: ACTIVITY_CATEGORIES.includes(payload.category) ? payload.category : 'other',
     cost: Math.max(0, toNumber(payload.cost, 0)),
-    notes: toText(payload.notes).slice(0, 300)
+    notes: toText(payload.notes).slice(0, 300),
+    imageUrl: toText(payload.imageUrl).slice(0, 1500)
   }
 }
 

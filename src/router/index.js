@@ -22,6 +22,12 @@ const router = createRouter({
       component: () => import('@/views/HolidayPlannerView.vue')
     },
     {
+      path: '/finance',
+      name: 'finance',
+      component: () => import('@/views/FinanceView.vue'),
+      meta: { requiresManager: true }
+    },
+    {
       path: '/users',
       name: 'users',
       component: () => import('@/views/UsersView.vue'),
@@ -44,6 +50,10 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    return { name: 'dashboard' }
+  }
+
+  if (to.meta.requiresManager && !authStore.isAdmin && !authStore.isParent) {
     return { name: 'dashboard' }
   }
 
