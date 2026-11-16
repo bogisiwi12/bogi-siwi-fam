@@ -251,7 +251,7 @@ function resetForm() {
   form.category = 'food'
   form.date = todayIso()
   form.note = ''
-  form.walletId = store.wallets[0]?.id || ''
+  form.walletId = ''
   formError.value = ''
 }
 
@@ -270,7 +270,7 @@ function openEditTransaction(transaction) {
   form.category = transaction.category || FINANCE_CATEGORIES[form.type][0].value
   form.date = transaction.date || todayIso()
   form.note = transaction.note || ''
-  form.walletId = transaction.walletId || store.wallets[0]?.id || ''
+  form.walletId = transaction.walletId || ''
   formError.value = ''
   showForm.value = true
 }
@@ -278,6 +278,11 @@ function openEditTransaction(transaction) {
 function closeForm() {
   showForm.value = false
   formError.value = ''
+}
+
+function switchToNewWallet() {
+  closeForm()
+  openNewWallet()
 }
 
 function changeType(type) {
@@ -446,17 +451,18 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-col gap-3 anim-fade-up sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 class="text-2xl font-extrabold text-gray-800 lg:text-3xl">
-          Finance <span class="inline-block anim-float">💰</span>
-        </h1>
-        <p class="mt-1 text-gray-500">
-          Track the family's income and expenses in one clear place.
-        </p>
+  <div class="space-y-5 pb-28 lg:pb-6">
+    <div class="flex flex-col gap-4 anim-fade-up sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex min-w-0 items-center gap-3">
+        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 text-2xl shadow-lg shadow-blue-200/60">
+          💰
+        </span>
+        <div class="min-w-0">
+          <h1 class="text-2xl font-extrabold text-gray-800 lg:text-3xl">Finance</h1>
+          <p class="text-sm text-gray-500">Income, expenses, and wallets in one clear view.</p>
+        </div>
       </div>
-      <div class="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+      <div class="flex flex-wrap items-center gap-2">
         <select
           :value="currency"
           aria-label="Currency"
@@ -467,18 +473,11 @@ onUnmounted(() => {
         </select>
         <span
           v-if="store.wallets.length"
-          class="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 shadow-sm"
+          class="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 shadow-sm"
         >
+          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           Wallet balance: {{ formatMoney(totalWalletBalance) }}
         </span>
-        <button
-          v-if="canManage"
-          type="button"
-          class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95"
-          @click="openNewTransaction"
-        >
-          + Add transaction
-        </button>
       </div>
     </div>
 
@@ -489,54 +488,54 @@ onUnmounted(() => {
       {{ store.error }}
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <div class="group rounded-2xl border border-blue-50 bg-white/80 p-5 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up">
-        <div class="flex items-center justify-between">
-          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-xl transition-transform duration-300 group-hover:scale-110">💵</span>
-          <span class="text-[10px] font-bold uppercase tracking-wide text-gray-400">{{ periodLabel }}</span>
+    <div class="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+      <div class="group rounded-2xl border border-blue-50 bg-white/80 p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-lg transition-transform duration-300 group-hover:scale-110 sm:h-10 sm:w-10 sm:text-xl">💵</span>
+          <span class="hidden text-right text-[10px] font-bold uppercase tracking-wide text-gray-400 sm:block">{{ periodLabel }}</span>
         </div>
-        <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Net balance</p>
+        <p class="mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-xs">Net balance</p>
         <p
-          class="mt-1 text-2xl font-extrabold tabular-nums"
+          class="mt-1 text-xl font-extrabold tabular-nums sm:text-2xl"
           :class="totals.balance >= 0 ? 'text-gray-800' : 'text-rose-500'"
         >
           {{ formatMoney(totals.balance) }}
         </p>
-        <p class="mt-1 text-[11px] text-gray-400">
+        <p class="mt-1 hidden text-[11px] text-gray-400 sm:block">
           {{ transactionCounts.income + transactionCounts.expense }} transactions this period
         </p>
       </div>
 
-      <div class="group rounded-2xl border border-emerald-50 bg-white/80 p-5 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up" style="--delay: 60ms">
-        <div class="flex items-center justify-between">
-          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-xl transition-transform duration-300 group-hover:scale-110">📈</span>
-          <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">{{ transactionCounts.income }} entries</span>
+      <div class="group rounded-2xl border border-emerald-50 bg-white/80 p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5" style="--delay: 60ms">
+        <div class="flex items-center justify-between gap-2">
+          <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-lg transition-transform duration-300 group-hover:scale-110 sm:h-10 sm:w-10 sm:text-xl">📈</span>
+          <span class="hidden rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 sm:inline-flex">{{ transactionCounts.income }} entries</span>
         </div>
-        <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Income</p>
-        <p class="mt-1 text-2xl font-extrabold tabular-nums text-emerald-600">
+        <p class="mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-xs">Income</p>
+        <p class="mt-1 text-xl font-extrabold tabular-nums text-emerald-600 sm:text-2xl">
           +{{ formatMoney(totals.income) }}
         </p>
-        <p class="mt-1 text-[11px] text-gray-400">Money coming in</p>
+        <p class="mt-1 hidden text-[11px] text-gray-400 sm:block">Money coming in</p>
       </div>
 
-      <div class="group rounded-2xl border border-rose-50 bg-white/80 p-5 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up" style="--delay: 120ms">
-        <div class="flex items-center justify-between">
-          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-xl transition-transform duration-300 group-hover:scale-110">📉</span>
-          <span class="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-500">{{ transactionCounts.expense }} entries</span>
+      <div class="group rounded-2xl border border-rose-50 bg-white/80 p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5" style="--delay: 120ms">
+        <div class="flex items-center justify-between gap-2">
+          <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-lg transition-transform duration-300 group-hover:scale-110 sm:h-10 sm:w-10 sm:text-xl">📉</span>
+          <span class="hidden rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-500 sm:inline-flex">{{ transactionCounts.expense }} entries</span>
         </div>
-        <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Expenses</p>
-        <p class="mt-1 text-2xl font-extrabold tabular-nums text-rose-500">
+        <p class="mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-xs">Expenses</p>
+        <p class="mt-1 text-xl font-extrabold tabular-nums text-rose-500 sm:text-2xl">
           −{{ formatMoney(totals.expense) }}
         </p>
-        <p class="mt-1 text-[11px] text-gray-400">Money going out</p>
+        <p class="mt-1 hidden text-[11px] text-gray-400 sm:block">Money going out</p>
       </div>
 
-      <div class="group rounded-2xl border border-purple-50 bg-white/80 p-5 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up" style="--delay: 180ms">
-        <div class="flex items-center justify-between">
-          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-xl transition-transform duration-300 group-hover:scale-110">🧮</span>
+      <div class="group rounded-2xl border border-purple-50 bg-white/80 p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5" style="--delay: 180ms">
+        <div class="flex items-center justify-between gap-2">
+          <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 text-lg transition-transform duration-300 group-hover:scale-110 sm:h-10 sm:w-10 sm:text-xl">🧮</span>
         </div>
-        <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Savings rate</p>
-        <p class="mt-1 text-2xl font-extrabold tabular-nums text-purple-600">
+        <p class="mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-xs">Savings rate</p>
+        <p class="mt-1 text-xl font-extrabold tabular-nums text-purple-600 sm:text-2xl">
           {{ totals.savingsRate == null ? '—' : `${Math.round(totals.savingsRate)}%` }}
         </p>
         <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
@@ -551,7 +550,15 @@ onUnmounted(() => {
     <div class="anim-fade-up" style="--delay: 220ms">
       <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 class="text-sm font-bold text-gray-700">Wallets</h2>
+          <h2 class="flex items-center gap-2 text-sm font-bold text-gray-700">
+            Wallets
+            <span
+              v-if="store.wallets.length"
+              class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500"
+            >
+              {{ store.wallets.length }}
+            </span>
+          </h2>
           <p class="text-xs text-gray-400">
             Every income and expense is linked to a wallet.
           </p>
@@ -593,50 +600,68 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div v-else class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div
+        v-else
+        class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:pb-0 xl:grid-cols-4"
+      >
         <div
           v-for="wallet in store.walletsWithBalance"
           :key="wallet.id"
-          class="group relative overflow-hidden rounded-2xl border border-blue-50 bg-white/80 p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift"
+          class="group relative min-w-[240px] shrink-0 snap-start overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift sm:min-w-0"
+          :class="wallet.type === 'credit'
+            ? 'border-amber-100 bg-gradient-to-br from-white to-amber-50/70'
+            : 'border-blue-50 bg-white/80'"
         >
-          <div class="flex items-start justify-between gap-2">
+          <div
+            v-if="wallet.type === 'credit'"
+            class="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-200/30 blur-2xl"
+          />
+          <div class="relative flex items-start justify-between gap-2">
             <span
               class="flex h-10 w-10 items-center justify-center rounded-xl text-xl transition-transform duration-300 group-hover:scale-110"
               :class="walletMeta(wallet.type).class"
             >
               {{ walletMeta(wallet.type).icon }}
             </span>
-            <div v-if="canManage" class="flex items-center gap-1">
+            <div v-if="canManage" class="flex items-center gap-0.5">
               <button
                 type="button"
-                class="rounded-lg px-2 py-1 text-[11px] font-semibold text-blue-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                aria-label="Edit wallet"
+                title="Edit wallet"
+                class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600 active:scale-90"
                 @click="openEditWallet(wallet)"
               >
-                Edit
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                </svg>
               </button>
               <button
                 type="button"
-                class="rounded-lg px-2 py-1 text-[11px] font-semibold text-rose-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                aria-label="Delete wallet"
+                title="Delete wallet"
+                class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-rose-50 hover:text-rose-600 active:scale-90"
                 @click="removeWallet(wallet)"
               >
-                Delete
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                </svg>
               </button>
             </div>
           </div>
-          <p class="mt-3 truncate text-sm font-bold text-gray-800">{{ wallet.name }}</p>
-          <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+          <p class="relative mt-3 truncate text-sm font-bold text-gray-800">{{ wallet.name }}</p>
+          <p class="relative text-[10px] font-bold uppercase tracking-wide text-gray-400">
             {{ walletMeta(wallet.type).label }}
           </p>
 
           <template v-if="wallet.type === 'credit'">
-            <p class="mt-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">Remaining credit</p>
+            <p class="relative mt-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">Remaining credit</p>
             <p
-              class="text-xl font-extrabold tabular-nums"
+              class="relative text-xl font-extrabold tabular-nums"
               :class="wallet.availableCredit > 0 ? 'text-gray-800' : 'text-rose-500'"
             >
               {{ formatMoney(wallet.availableCredit) }}
             </p>
-            <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
+            <div class="relative mt-2 h-2 overflow-hidden rounded-full bg-amber-100/70">
               <div
                 class="h-full rounded-full transition-all duration-700 ease-out"
                 :class="wallet.usedAmount >= wallet.creditLimit
@@ -645,19 +670,19 @@ onUnmounted(() => {
                 :style="{ width: `${wallet.creditLimit ? Math.min(100, (wallet.usedAmount / wallet.creditLimit) * 100) : 0}%` }"
               />
             </div>
-            <div class="mt-1.5 flex items-center justify-between gap-2 text-[10px] font-semibold text-gray-400">
+            <div class="relative mt-1.5 flex items-center justify-between gap-2 text-[10px] font-semibold text-gray-400">
               <span>Used {{ formatMoney(wallet.usedAmount) }}</span>
               <span>Limit {{ formatMoney(wallet.creditLimit) }}</span>
             </div>
           </template>
           <template v-else>
             <p
-              class="mt-2 text-xl font-extrabold tabular-nums"
+              class="relative mt-2 text-xl font-extrabold tabular-nums"
               :class="wallet.balance >= 0 ? 'text-gray-800' : 'text-rose-500'"
             >
               {{ formatMoney(wallet.balance) }}
             </p>
-            <p v-if="Number(wallet.initialBalance)" class="mt-0.5 text-[10px] text-gray-400">
+            <p v-if="Number(wallet.initialBalance)" class="relative mt-0.5 text-[10px] text-gray-400">
               Started at {{ formatMoney(wallet.initialBalance) }}
             </p>
           </template>
@@ -665,13 +690,13 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="rounded-2xl border border-blue-50 bg-white/80 p-4 shadow-sm backdrop-blur anim-fade-up" style="--delay: 240ms">
-      <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="inline-flex rounded-xl bg-gray-100 p-1">
+    <div class="rounded-2xl border border-gray-100 bg-white/80 p-3 shadow-sm backdrop-blur anim-fade-up sm:p-4" style="--delay: 240ms">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <div class="col-span-2 inline-flex rounded-xl bg-gray-100 p-1 sm:col-auto">
             <button
               type="button"
-              class="rounded-lg px-3 py-1.5 text-xs font-bold transition-all"
+              class="flex-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-all sm:flex-none"
               :class="rangeMode === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
               @click="rangeMode = 'month'"
             >
@@ -679,7 +704,7 @@ onUnmounted(() => {
             </button>
             <button
               type="button"
-              class="rounded-lg px-3 py-1.5 text-xs font-bold transition-all"
+              class="flex-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-all sm:flex-none"
               :class="rangeMode === 'all' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
               @click="rangeMode = 'all'"
             >
@@ -691,12 +716,12 @@ onUnmounted(() => {
             v-model="selectedMonth"
             type="month"
             aria-label="Filter by month"
-            class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            class="col-span-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:col-auto sm:w-auto"
           />
           <select
             v-model="typeFilter"
             aria-label="Filter by type"
-            class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-auto"
           >
             <option value="all">All types</option>
             <option value="income">Income only</option>
@@ -705,7 +730,7 @@ onUnmounted(() => {
           <select
             v-model="walletFilter"
             aria-label="Filter by wallet"
-            class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-auto"
           >
             <option value="all">All wallets</option>
             <option v-for="wallet in store.wallets" :key="wallet.id" :value="wallet.id">
@@ -715,7 +740,7 @@ onUnmounted(() => {
           <select
             v-model="categoryFilter"
             aria-label="Filter by category"
-            class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            class="col-span-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:col-auto sm:w-auto"
           >
             <option value="all">All categories</option>
             <option v-for="category in allCategories" :key="`${category.type}-${category.value}`" :value="category.value">
@@ -725,19 +750,23 @@ onUnmounted(() => {
         </div>
 
         <div class="flex items-center gap-2">
-          <div class="relative flex-1 xl:w-64">
-            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">🔍</span>
+          <div class="relative flex-1">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+            </span>
             <input
               v-model="search"
               type="search"
-              placeholder="Search note or category"
-              class="w-full rounded-xl border border-gray-200 py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              placeholder="Search note, category, wallet"
+              class="w-full rounded-xl border border-gray-200 py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100 lg:w-72"
             />
           </div>
           <button
             v-if="hasFilters"
             type="button"
-            class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
+            class="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
             @click="resetFilters"
           >
             Clear
@@ -747,8 +776,8 @@ onUnmounted(() => {
     </div>
 
     <div class="grid gap-4 lg:grid-cols-3">
-      <div class="overflow-hidden rounded-2xl border border-blue-50 bg-white/80 shadow-sm backdrop-blur anim-fade-up lg:col-span-2" style="--delay: 300ms">
-        <div class="flex items-center justify-between border-b border-gray-50 px-4 py-3">
+      <div class="overflow-hidden rounded-2xl border border-gray-100 bg-white/80 shadow-sm backdrop-blur anim-fade-up lg:col-span-2" style="--delay: 300ms">
+        <div class="flex items-center justify-between border-b border-gray-50 px-3 py-3 sm:px-4">
           <h2 class="text-sm font-bold text-gray-700">Transactions</h2>
           <span class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-gray-500 shadow-sm ring-1 ring-gray-100">
             {{ filteredTransactions.length }} shown
@@ -782,7 +811,7 @@ onUnmounted(() => {
 
         <div v-else class="divide-y divide-gray-50">
           <template v-for="group in groupedByDate" :key="group.date">
-            <div class="flex items-center justify-between bg-gray-50/60 px-4 py-2">
+            <div class="flex items-center justify-between bg-gray-50/60 px-3 py-2 sm:px-4">
               <span class="text-[11px] font-bold uppercase tracking-wide text-gray-400">
                 {{ formatGroupDate(group.date) }}
               </span>
@@ -791,10 +820,10 @@ onUnmounted(() => {
             <div
               v-for="transaction in group.items"
               :key="transaction.id"
-              class="group flex items-center gap-3 px-4 py-3 transition-colors duration-300 hover:bg-gray-50/70"
+              class="group flex items-center gap-2 px-3 py-3 transition-colors duration-300 hover:bg-gray-50/70 sm:gap-3 sm:px-4"
             >
               <span
-                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base sm:h-10 sm:w-10 sm:text-lg"
                 :class="categoryMeta(transaction.type, transaction.category).class"
               >
                 {{ categoryMeta(transaction.type, transaction.category).icon }}
@@ -803,7 +832,7 @@ onUnmounted(() => {
                 <p class="truncate text-sm font-semibold text-gray-800">
                   {{ transaction.note || categoryMeta(transaction.type, transaction.category).label }}
                 </p>
-                <p class="truncate text-xs text-gray-400">
+                <p class="truncate text-[11px] text-gray-400 sm:text-xs">
                   {{ categoryMeta(transaction.type, transaction.category).label }}
                   <span class="text-gray-300">·</span>
                   <span :class="walletsById[transaction.walletId] ? '' : 'text-amber-500'">
@@ -811,27 +840,37 @@ onUnmounted(() => {
                   </span>
                 </p>
               </div>
-              <span
-                class="shrink-0 text-sm font-bold tabular-nums"
-                :class="transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-500'"
-              >
-                {{ transaction.type === 'income' ? '+' : '−' }}{{ formatMoney(transaction.amount) }}
-              </span>
-              <div v-if="canManage" class="flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  class="rounded-lg px-2 py-1 text-[11px] font-semibold text-blue-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                  @click="openEditTransaction(transaction)"
+              <div class="flex shrink-0 items-center gap-1 sm:gap-2">
+                <span
+                  class="text-xs font-bold tabular-nums sm:text-sm"
+                  :class="transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-500'"
                 >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  class="rounded-lg px-2 py-1 text-[11px] font-semibold text-rose-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                  @click="removeTransaction(transaction)"
-                >
-                  Delete
-                </button>
+                  {{ transaction.type === 'income' ? '+' : '−' }}{{ formatMoney(transaction.amount) }}
+                </span>
+                <div v-if="canManage" class="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    aria-label="Edit transaction"
+                    title="Edit transaction"
+                    class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600 active:scale-90"
+                    @click="openEditTransaction(transaction)"
+                  >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete transaction"
+                    title="Delete transaction"
+                    class="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-rose-50 hover:text-rose-600 active:scale-90"
+                    @click="removeTransaction(transaction)"
+                  >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </template>
@@ -839,7 +878,7 @@ onUnmounted(() => {
       </div>
 
       <div class="space-y-4">
-        <div class="rounded-2xl border border-blue-50 bg-white/80 p-5 shadow-sm backdrop-blur anim-fade-up" style="--delay: 360ms">
+        <div class="rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-sm backdrop-blur anim-fade-up sm:p-5" style="--delay: 360ms">
           <div class="flex items-center justify-between">
             <h2 class="text-sm font-bold text-gray-700">Spending by category</h2>
             <span class="text-[10px] font-bold uppercase tracking-wide text-gray-400">{{ periodLabel }}</span>
@@ -867,7 +906,7 @@ onUnmounted(() => {
           </p>
         </div>
 
-        <div class="rounded-2xl border border-blue-50 bg-gradient-to-br from-blue-500 to-cyan-500 p-5 text-white shadow-lg shadow-blue-200/60 anim-fade-up" style="--delay: 420ms">
+        <div class="rounded-2xl bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 p-4 text-white shadow-lg shadow-blue-200/60 anim-fade-up sm:p-5" style="--delay: 420ms">
           <p class="text-xs font-bold uppercase tracking-wide text-white/70">Period summary</p>
           <p class="mt-1 text-sm font-semibold text-white/90">{{ periodLabel }}</p>
           <dl class="mt-4 space-y-2 text-sm">
@@ -892,6 +931,19 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <button
+      v-if="canManage"
+      type="button"
+      aria-label="Add transaction"
+      class="fixed bottom-24 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 p-4 text-sm font-bold text-white shadow-xl shadow-blue-500/40 ring-1 ring-white/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl active:scale-95 sm:right-6 sm:px-5 lg:bottom-8 lg:right-8"
+      @click="openNewTransaction"
+    >
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      <span class="hidden sm:inline">Add transaction</span>
+    </button>
 
     <Teleport to="body">
       <div
@@ -951,7 +1003,7 @@ onUnmounted(() => {
                   max="1000000000000"
                   step="0.01"
                   placeholder="0"
-                  class="w-full bg-transparent text-lg font-bold text-gray-800 outline-none"
+                  class="w-full bg-transparent text-xl font-extrabold text-gray-800 outline-none"
                   @keyup.esc="closeForm"
                 />
               </div>
@@ -971,9 +1023,18 @@ onUnmounted(() => {
                     : formatMoney(wallet.balance) }}
                 </option>
               </select>
-              <p v-if="!store.wallets.length" class="mt-1 text-[11px] font-medium text-amber-600">
-                You need at least one wallet before saving a transaction.
-              </p>
+              <div v-if="!store.wallets.length" class="mt-1 flex flex-wrap items-center gap-2">
+                <p class="text-[11px] font-medium text-amber-600">
+                  Create a wallet before saving a transaction.
+                </p>
+                <button
+                  type="button"
+                  class="rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 transition-all hover:bg-amber-100 active:scale-95"
+                  @click="switchToNewWallet"
+                >
+                  + New wallet
+                </button>
+              </div>
             </div>
 
             <div class="grid gap-3 sm:grid-cols-2">
