@@ -114,6 +114,29 @@ export const useUserStore = defineStore('users', () => {
     }
   }
 
+  async function updatePhone(uid, phone) {
+    error.value = ''
+    const value = (phone || '').trim()
+
+    if (value.length > 20) {
+      error.value = 'Phone number must be 20 characters or fewer.'
+      return false
+    }
+    if (value && !/^\+?[0-9 ()-]{3,20}$/.test(value)) {
+      error.value = 'Use digits, spaces, dashes, parentheses and an optional leading +.'
+      return false
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', uid), { phone: value })
+      return true
+    } catch (err) {
+      console.error('Failed to update user phone:', err)
+      error.value = err.message || 'Failed to update user phone.'
+      return false
+    }
+  }
+
   function dispose() {
     if (unsubscribe) unsubscribe()
     unsubscribe = null
@@ -129,6 +152,7 @@ export const useUserStore = defineStore('users', () => {
     error,
     subscribe,
     updateRole,
+    updatePhone,
     dispose
   }
 })

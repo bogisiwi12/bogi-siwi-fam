@@ -11,6 +11,7 @@ rules_version = '2';
 //   - photoURL: string (required, empty or https URL)
 //   - role: string (required, one of admin/parent/child/member)
 //           owners cannot change their own role; admins can change others'
+//   - phone: string (optional, phone number set by admins)
 //   - createdAt: timestamp (optional)
 //   - lastLoginAt: timestamp (optional)
 //
@@ -169,13 +170,16 @@ service cloud.firestore {
     // =============================================================
 
     function isValidUser(data) {
-      return data.keys().hasOnly(['uid', 'name', 'email', 'photoURL', 'role', 'createdAt', 'lastLoginAt'])
+      return data.keys().hasOnly(['uid', 'name', 'email', 'photoURL', 'role', 'phone', 'createdAt', 'lastLoginAt'])
         && data.uid is string
         && data.name is string && data.name.size() > 0 && data.name.size() <= 60
         && isValidEmail(data.email)
         && isValidUrl(data.photoURL)
         && data.role is string
-        && isValidRole(data.role);
+        && isValidRole(data.role)
+        && (!('phone' in data) || (data.phone is string
+          && data.phone.size() <= 20
+          && (data.phone == '' || data.phone.matches('^[+]?[0-9 ()-]{3,20}$'))));
     }
 
     function isValidMember(data, userId) {
@@ -273,7 +277,7 @@ service cloud.firestore {
 
       // Owners may edit their profile but cannot change their own role
       // (except the bootstrap admin, who is promoted to admin once).
-      // Admins may change other users' roles, and only the role field.
+      // Admins may change other users' roles and phone numbers, and only those fields.
       allow update: if isSignedIn()
         && isValidUser(request.resource.data)
         && (
@@ -284,12 +288,14 @@ service cloud.firestore {
               request.resource.data.role == resource.data.role
               || (isBootstrapAdmin() && request.resource.data.role == 'admin')
             )
+            && (isAdmin()
+              || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['phone']))
           )
           || (
             isAdmin()
             && request.auth.uid != userId
             && request.resource.data.uid == resource.data.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'phone'])
           )
         );
 

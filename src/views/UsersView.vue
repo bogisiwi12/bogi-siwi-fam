@@ -23,7 +23,8 @@ const filteredUsers = computed(() => {
   return store.sortedUsers.filter(
     (user) =>
       (user.name || '').toLowerCase().includes(term) ||
-      (user.email || '').toLowerCase().includes(term)
+      (user.email || '').toLowerCase().includes(term) ||
+      (user.phone || '').toLowerCase().includes(term)
   )
 })
 
@@ -42,6 +43,13 @@ async function handleRoleChange(user, event) {
   if (nextRole === user.role) return
   const ok = await store.updateRole(user.id, nextRole)
   if (!ok) event.target.value = user.role
+}
+
+async function handlePhoneChange(user, event) {
+  const nextPhone = event.target.value.trim()
+  if (nextPhone === (user.phone || '')) return
+  const ok = await store.updatePhone(user.id, nextPhone)
+  if (!ok) event.target.value = user.phone || ''
 }
 
 onMounted(() => store.subscribe())
@@ -87,7 +95,7 @@ onUnmounted(() => store.dispose())
         <h2 class="text-sm font-bold text-gray-700">All users</h2>
         <div class="relative w-full sm:w-72">
           <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">🔍</span>
-          <input v-model="search" type="search" placeholder="Search name or email"
+          <input v-model="search" type="search" placeholder="Search name, email or phone"
                  class="w-full rounded-xl border border-gray-200 py-2 pl-9 pr-3 text-sm outline-none transition-all duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
         </div>
       </div>
@@ -127,6 +135,23 @@ onUnmounted(() => store.dispose())
             </div>
           </div>
 
+          <div class="w-full sm:w-48">
+            <label class="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+              Phone
+              <span class="rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold normal-case tracking-normal text-purple-600">
+                admin only
+              </span>
+            </label>
+            <input
+              type="tel"
+              :value="user.phone || ''"
+              placeholder="e.g. +62 812 3456 7890"
+              maxlength="20"
+              @change="handlePhoneChange(user, $event)"
+              class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all duration-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+
           <div class="flex items-center justify-between gap-3 sm:justify-end">
             <div class="text-left sm:text-right">
               <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
@@ -151,7 +176,7 @@ onUnmounted(() => store.dispose())
     <div class="rounded-2xl border border-blue-100/70 bg-blue-50/60 px-4 py-3 text-xs text-blue-700 anim-fade-up" style="--delay: 180ms">
       <p class="font-semibold">Role permissions</p>
       <p class="mt-1 text-blue-600/80">
-        <strong>Admin</strong> can manage user roles. Users assigned <strong>Parent</strong> or <strong>Child</strong>
+        <strong>Admin</strong> can manage user roles and phone numbers. Users assigned <strong>Parent</strong> or <strong>Child</strong>
         appear automatically in Family Members. <strong>Member</strong> users do not appear there. You cannot change your own role.
       </p>
     </div>
