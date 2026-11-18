@@ -4,6 +4,7 @@ import { useHolidayStore } from '@/stores/holidayStore'
 import { useAuthStore } from '@/stores/authStore'
 import MarqueeText from '@/components/MarqueeText.vue'
 import {
+  normalizeItineraryImageUrl,
   isItineraryDriveConfigured,
   uploadItineraryImage
 } from '@/services/googleDrive'
@@ -397,6 +398,10 @@ function pickActivityImage() {
   activityImageInput.value?.click()
 }
 
+function setActivityImageInput(element) {
+  activityImageInput.value = element
+}
+
 function pickActivityEditImage() {
   activityEditImageInput.value?.click()
 }
@@ -427,7 +432,7 @@ async function handleActivityEditImageChange(event) {
 
 function openImage(url, title) {
   if (!url) return
-  viewingImage.value = { url, title }
+  viewingImage.value = { url: normalizeItineraryImageUrl(url), title }
 }
 
 function closeImage() {
@@ -1157,7 +1162,7 @@ onUnmounted(() => {
                   @click="openImage(activity.imageUrl, activity.title)"
                 >
                   <img
-                    :src="activity.imageUrl"
+                    :src="normalizeItineraryImageUrl(activity.imageUrl)"
                     :alt="activity.title"
                     loading="lazy"
                     class="h-20 w-20 object-cover sm:h-28 sm:w-32"
@@ -1241,7 +1246,7 @@ onUnmounted(() => {
                 <div class="flex items-center gap-3">
                   <div v-if="activityForm.imageUrl" class="relative shrink-0">
                     <img
-                      :src="activityForm.imageUrl"
+                      :src="normalizeItineraryImageUrl(activityForm.imageUrl)"
                       alt="Activity preview"
                       class="h-14 w-20 rounded-lg object-cover"
                     />
@@ -1277,7 +1282,7 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <input
-                  ref="activityImageInput"
+                  :ref="setActivityImageInput"
                   type="file"
                   accept="image/*"
                   class="hidden"
@@ -1638,7 +1643,7 @@ onUnmounted(() => {
               <div class="flex items-center gap-3">
                 <div v-if="activityEditForm.imageUrl" class="relative shrink-0">
                   <img
-                    :src="activityEditForm.imageUrl"
+                    :src="normalizeItineraryImageUrl(activityEditForm.imageUrl)"
                     alt="Activity preview"
                     class="h-14 w-20 rounded-lg object-cover"
                   />

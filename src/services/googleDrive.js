@@ -183,6 +183,32 @@ async function deleteFile(fileId, token) {
   }
 }
 
+export function getItineraryImageUrl(fileId) {
+  return `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(API_KEY || '')}`
+}
+
+export function normalizeItineraryImageUrl(url) {
+  if (!url) return url
+
+  let parsedUrl
+  try {
+    parsedUrl = new URL(url)
+  } catch {
+    return url
+  }
+
+  if (
+    parsedUrl.origin !== 'https://drive.google.com' ||
+    parsedUrl.pathname !== '/uc' ||
+    parsedUrl.searchParams.get('export') !== 'view'
+  ) {
+    return url
+  }
+
+  const fileId = parsedUrl.searchParams.get('id')
+  return fileId ? getItineraryImageUrl(fileId) : url
+}
+
 async function uploadImage(file, folderId, filePrefix, maxDimension) {
   if (!file) throw new Error('No image selected.')
   if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.')
@@ -234,7 +260,7 @@ async function uploadImage(file, folderId, filePrefix, maxDimension) {
   return {
     id: uploaded.id,
     name: uploaded.name,
-    url: `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(uploaded.id)}?alt=media&key=${encodeURIComponent(API_KEY || '')}`
+    url: getItineraryImageUrl(uploaded.id)
   }
 }
 
