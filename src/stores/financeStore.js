@@ -70,15 +70,15 @@ export const useFinanceStore = defineStore('finance', () => {
       }
 
       if (wallet.type === 'credit') {
-        const usedAmount = Math.max(0, initialBalance + expense - income)
+        const outstandingAmount = Math.max(0, initialBalance + expense - income)
         return {
           ...wallet,
           income,
           expense,
           creditLimit,
-          usedAmount,
-          availableCredit: Math.max(0, creditLimit - usedAmount),
-          balance: -usedAmount
+          outstandingAmount,
+          availableCredit: Math.max(0, creditLimit - outstandingAmount),
+          balance: -outstandingAmount
         }
       }
 

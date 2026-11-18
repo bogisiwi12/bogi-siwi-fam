@@ -4,6 +4,7 @@ import { useFinanceStore } from '@/stores/financeStore'
 import { useAuthStore } from '@/stores/authStore'
 import {
   CURRENCIES,
+  CREDIT_CARD_PAYMENT_CATEGORY,
   FINANCE_CATEGORIES,
   FINANCE_TYPES,
   WALLET_TYPES,
@@ -106,18 +107,41 @@ function formatGroupDate(value) {
 }
 
 const allCategories = computed(() =>
-  FINANCE_TYPES.flatMap((type) =>
-    FINANCE_CATEGORIES[type].map((category) => ({ ...category, type }))
-  )
+  [
+    ...FINANCE_TYPES.flatMap((type) =>
+      FINANCE_CATEGORIES[type].map((category) => ({ ...category, type }))
+    ),
+    { ...CREDIT_CARD_PAYMENT_CATEGORY, type: 'income' }
+  ]
 )
 
 const walletsById = computed(() =>
   Object.fromEntries(store.wallets.map((wallet) => [wallet.id, wallet]))
 )
 
+const transactionCategories = computed(() => {
+  if (
+    form.type === 'income' &&
+    walletsById.value[form.walletId]?.type === 'credit'
+  ) {
+    return [CREDIT_CARD_PAYMENT_CATEGORY]
+  }
+  return FINANCE_CATEGORIES[form.type]
+})
+
 const totalWalletBalance = computed(() =>
   store.walletsWithBalance.reduce((sum, wallet) => sum + (Number(wallet.balance) || 0), 0)
 )
+
+const walletFormOutstanding = computed(() => {
+  if (walletForm.type !== 'credit') return 0
+  const wallet = store.walletsWithBalance.find((item) => item.id === editingWalletId.value)
+  const initialBalance = Number(walletForm.initialBalance) || 0
+  return Math.max(
+    0,
+    initialBalance + (Number(wallet?.expense) || 0) - (Number(wallet?.income) || 0)
+  )
+})
 
 const periodLabel = computed(() =>
   rangeMode.value === 'all' ? 'All time' : formatMonthLabel(selectedMonth.value)
@@ -271,6 +295,7 @@ function openEditTransaction(transaction) {
   form.date = transaction.date || todayIso()
   form.note = transaction.note || ''
   form.walletId = transaction.walletId || ''
+  syncTransactionCategory()
   formError.value = ''
   showForm.value = true
 }
@@ -287,8 +312,12 @@ function switchToNewWallet() {
 
 function changeType(type) {
   form.type = type
-  if (!FINANCE_CATEGORIES[type].some((category) => category.value === form.category)) {
-    form.category = FINANCE_CATEGORIES[type][0].value
+  syncTransactionCategory()
+}
+
+function syncTransactionCategory() {
+  if (!transactionCategories.value.some((category) => category.value === form.category)) {
+    form.category = transactionCategories.value[0].value
   }
 }
 
@@ -654,7 +683,7 @@ onUnmounted(() => {
           </p>
 
           <template v-if="wallet.type === 'credit'">
-            <p class="relative mt-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">Remaining credit</p>
+            <p class="relative mt-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">Available credit</p>
             <p
               class="relative text-xl font-extrabold tabular-nums"
               :class="wallet.availableCredit > 0 ? 'text-gray-800' : 'text-rose-500'"
@@ -664,14 +693,14 @@ onUnmounted(() => {
             <div class="relative mt-2 h-2 overflow-hidden rounded-full bg-amber-100/70">
               <div
                 class="h-full rounded-full transition-all duration-700 ease-out"
-                :class="wallet.usedAmount >= wallet.creditLimit
+                :class="wallet.outstandingAmount >= wallet.creditLimit
                   ? 'bg-rose-500'
                   : 'bg-gradient-to-r from-amber-400 to-orange-400'"
-                :style="{ width: `${wallet.creditLimit ? Math.min(100, (wallet.usedAmount / wallet.creditLimit) * 100) : 0}%` }"
+                :style="{ width: `${wallet.creditLimit ? Math.min(100, (wallet.outstandingAmount / wallet.creditLimit) * 100) : 0}%` }"
               />
             </div>
             <div class="relative mt-1.5 flex items-center justify-between gap-2 text-[10px] font-semibold text-gray-400">
-              <span>Used {{ formatMoney(wallet.usedAmount) }}</span>
+              <span>Outstanding {{ formatMoney(wallet.outstandingAmount) }}</span>
               <span>Limit {{ formatMoney(wallet.creditLimit) }}</span>
             </div>
           </template>
@@ -1014,6 +1043,7 @@ onUnmounted(() => {
               <select
                 v-model="form.walletId"
                 class="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                @change="syncTransactionCategory"
               >
                 <option value="" disabled>Select a wallet…</option>
                 <option v-for="wallet in store.walletsWithBalance" :key="wallet.id" :value="wallet.id">
@@ -1044,7 +1074,7 @@ onUnmounted(() => {
                   v-model="form.category"
                   class="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option v-for="category in FINANCE_CATEGORIES[form.type]" :key="category.value" :value="category.value">
+                  <option v-for="category in transactionCategories" :key="category.value" :value="category.value">
                     {{ category.icon }} {{ category.label }}
                   </option>
                 </select>
@@ -1172,7 +1202,7 @@ onUnmounted(() => {
 
             <div>
               <label class="text-xs font-bold uppercase tracking-wide text-gray-400">
-                {{ walletForm.type === 'credit' ? 'Outstanding amount' : 'Starting balance' }}
+                {{ walletForm.type === 'credit' ? 'Initial outstanding amount' : 'Starting balance' }}
               </label>
               <div class="mt-1 flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 transition-all focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
                 <span class="text-sm font-bold text-gray-400">{{ currency }}</span>
@@ -1186,8 +1216,20 @@ onUnmounted(() => {
               </div>
               <p class="mt-1 text-[11px] text-gray-400">
                 {{ walletForm.type === 'credit'
-                  ? 'How much is already used. Linked expenses raise the used amount; payments lower it.'
+                  ? 'The debt before linked transactions. Purchases increase it; payments reduce it.'
                   : 'The current balance updates automatically from linked transactions.' }}
+              </p>
+            </div>
+
+            <div
+              v-if="walletForm.type === 'credit'"
+              class="rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-3"
+            >
+              <p class="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                Current outstanding (with transactions)
+              </p>
+              <p class="mt-1 text-lg font-extrabold tabular-nums text-rose-500">
+                {{ formatMoney(walletFormOutstanding) }}
               </p>
             </div>
 

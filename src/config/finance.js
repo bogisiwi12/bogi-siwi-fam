@@ -11,6 +11,13 @@ export const WALLET_TYPES = [
   { value: 'other', label: 'Other', icon: '👛', class: 'bg-gray-100 text-gray-600' }
 ]
 
+export const CREDIT_CARD_PAYMENT_CATEGORY = {
+  value: 'outstanding-payment',
+  label: 'Outstanding amount payment',
+  icon: '💳',
+  class: 'bg-rose-100 text-rose-700'
+}
+
 const FALLBACK_WALLET = WALLET_TYPES[WALLET_TYPES.length - 1]
 
 export function walletMeta(value) {
@@ -52,6 +59,9 @@ const FALLBACK_CATEGORY = {
 }
 
 export function categoryMeta(type, value) {
+  if (type === 'income' && value === CREDIT_CARD_PAYMENT_CATEGORY.value) {
+    return CREDIT_CARD_PAYMENT_CATEGORY
+  }
   const list = FINANCE_CATEGORIES[type] || FINANCE_CATEGORIES.expense
   return list.find((item) => item.value === value) || FALLBACK_CATEGORY
 }
