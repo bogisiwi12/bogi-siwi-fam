@@ -1,6 +1,8 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { disableNetwork, enableNetwork } from 'firebase/firestore'
 import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
+import { db } from '@/firebase/config'
 import { useFamilyStore } from '@/stores/familyStore'
 import { useAuthStore } from '@/stores/authStore'
 import UserAvatar from '@/components/UserAvatar.vue'
@@ -43,6 +45,10 @@ const navItems = computed(() =>
 )
 
 const mobileNav = ref(null)
+const FIRESTORE_REFRESH_THRESHOLD = 30_000
+let hiddenAt = null
+let reconnectingFirestore = false
+let lastFirestoreReconnectAt = 0
 
 function centerActiveMobileNav() {
   const container = mobileNav.value
@@ -55,7 +61,50 @@ function centerActiveMobileNav() {
   })
 }
 
-onMounted(centerActiveMobileNav)
+async function reconnectFirestore() {
+  const now = Date.now()
+  if (reconnectingFirestore || now - lastFirestoreReconnectAt < 5_000) return
+
+  reconnectingFirestore = true
+  lastFirestoreReconnectAt = now
+  try {
+    await disableNetwork(db)
+    await enableNetwork(db)
+  } catch (error) {
+    console.error('Failed to refresh Firestore after resuming the app:', error)
+  } finally {
+    reconnectingFirestore = false
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'hidden') {
+    hiddenAt = Date.now()
+    return
+  }
+
+  if (hiddenAt === null) return
+  const wasHiddenLongEnough = Date.now() - hiddenAt >= FIRESTORE_REFRESH_THRESHOLD
+  hiddenAt = null
+  if (wasHiddenLongEnough) void reconnectFirestore()
+}
+
+function handlePageShow(event) {
+  if (!event.persisted) return
+  hiddenAt = null
+  void reconnectFirestore()
+}
+
+onMounted(() => {
+  centerActiveMobileNav()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('pageshow', handlePageShow)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('pageshow', handlePageShow)
+})
 
 watch(
   () => route.path,
