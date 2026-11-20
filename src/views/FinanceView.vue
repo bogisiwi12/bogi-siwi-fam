@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useFinanceStore } from '@/stores/financeStore'
 import { useAuthStore } from '@/stores/authStore'
+import NotificationBell from '@/components/NotificationBell.vue'
 import {
   CURRENCIES,
   CREDIT_CARD_PAYMENT_CATEGORY,
@@ -366,6 +367,10 @@ async function saveTransaction() {
     }
   }
 
+  if (rangeMode.value === 'month' && payload.date) {
+    selectedMonth.value = payload.date.slice(0, 7)
+  }
+
   closeForm()
 }
 
@@ -492,6 +497,7 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <NotificationBell />
         <select
           :value="currency"
           aria-label="Currency"

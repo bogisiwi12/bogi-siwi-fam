@@ -5,10 +5,13 @@ import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { db } from '@/firebase/config'
 import { useFamilyStore } from '@/stores/familyStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useNotificationStore } from '@/stores/notificationStore'
 import UserAvatar from '@/components/UserAvatar.vue'
+import FinanceActivityToasts from '@/components/FinanceActivityToasts.vue'
 
 const store = useFamilyStore()
 const auth = useAuthStore()
+const notifications = useNotificationStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -124,8 +127,21 @@ watch(
   }
 )
 
+watch(
+  () => [auth.isAuthenticated, auth.canManageRules, auth.user?.uid],
+  ([authenticated, canManage, uid]) => {
+    if (authenticated && canManage && uid) {
+      notifications.subscribe({ uid })
+    } else {
+      notifications.unsubscribe()
+    }
+  },
+  { immediate: true }
+)
+
 async function handleLogout() {
   store.dispose()
+  notifications.unsubscribe()
   await auth.logout()
   router.push({ name: 'dashboard' })
 }
@@ -285,5 +301,7 @@ async function handleLogout() {
         </div>
       </nav>
     </div>
+
+    <FinanceActivityToasts v-if="auth.isAuthenticated && auth.canManageRules" />
   </div>
 </template>

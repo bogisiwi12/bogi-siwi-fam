@@ -18,7 +18,8 @@ export default defineConfig({
             {
               name: 'firebase-firestore',
               test: /node_modules[\\/](@firebase[\\/]firestore|firebase[\\/]firestore)/,
-              priority: 30
+              priority: 30,
+              maxSize: 400 * 1024
             },
             {
               name: 'firebase-auth',

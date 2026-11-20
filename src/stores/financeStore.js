@@ -12,7 +12,9 @@ import {
   serverTimestamp
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
-import { FINANCE_TYPES, WALLET_TYPES } from '@/config/finance'
+import { useAuthStore } from '@/stores/authStore'
+import { useNotificationStore } from '@/stores/notificationStore'
+import { FINANCE_TYPES, WALLET_TYPES, categoryMeta } from '@/config/finance'
 
 const MAX_AMOUNT = 1000000000000
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -46,6 +48,8 @@ function normalizeWallet(payload) {
 }
 
 export const useFinanceStore = defineStore('finance', () => {
+  const auth = useAuthStore()
+  const notifications = useNotificationStore()
   const transactions = ref([])
   const wallets = ref([])
   const loading = ref(false)
@@ -95,6 +99,39 @@ export const useFinanceStore = defineStore('finance', () => {
   function handleError(label, err) {
     console.error(`${label}:`, err)
     error.value = err?.message || `${label} failed.`
+  }
+
+  function publishActivity(action, transaction) {
+    if (!auth.user?.uid || !transaction) return
+
+    const wallet = wallets.value.find((item) => item.id === transaction.walletId)
+    const category = categoryMeta(transaction.type, transaction.category)
+
+    void notifications.publish({
+      kind: 'finance',
+      action,
+      actorId: auth.user.uid,
+      actorName: (auth.displayName || 'A family member').slice(0, 60),
+      transactionId: (transaction.id || '').slice(0, 128),
+      type: transaction.type,
+      amount: Math.max(0, Number(transaction.amount) || 0),
+      category: (transaction.category || '').slice(0, 40),
+      categoryLabel: category.label.slice(0, 60),
+      walletName: (wallet?.name || '').slice(0, 60)
+    })
+  }
+
+  function applyLocalTransaction(record) {
+    const existing = transactions.value.find((item) => item.id === record.id)
+    const merged = { ...existing, ...record }
+    transactions.value = [
+      merged,
+      ...transactions.value.filter((item) => item.id !== record.id)
+    ].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  }
+
+  function removeLocalTransaction(id) {
+    transactions.value = transactions.value.filter((item) => item.id !== id)
   }
 
   async function persist(operation, label) {
@@ -212,6 +249,8 @@ export const useFinanceStore = defineStore('finance', () => {
         ...transaction,
         createdAt: serverTimestamp()
       })
+      applyLocalTransaction({ ...transaction, id: ref.id })
+      publishActivity('added', { ...transaction, id: ref.id })
       return ref.id
     } catch (err) {
       handleError('Adding transaction', err)
@@ -219,19 +258,30 @@ export const useFinanceStore = defineStore('finance', () => {
     }
   }
 
-  function updateTransaction(id, payload) {
+  async function updateTransaction(id, payload) {
     error.value = ''
     const transaction = normalizeTransaction(payload)
-    if (!validateTransaction(transaction)) return Promise.resolve(false)
+    if (!validateTransaction(transaction)) return false
 
-    return persist(
+    const ok = await persist(
       updateDoc(doc(db, 'transactions', id), transaction),
       'Updating transaction'
     )
+    if (ok) {
+      applyLocalTransaction({ ...transaction, id })
+      publishActivity('updated', { ...transaction, id })
+    }
+    return ok
   }
 
-  function removeTransaction(id) {
-    return persist(deleteDoc(doc(db, 'transactions', id)), 'Removing transaction')
+  async function removeTransaction(id) {
+    const transaction = transactions.value.find((item) => item.id === id)
+    const ok = await persist(deleteDoc(doc(db, 'transactions', id)), 'Removing transaction')
+    if (ok) {
+      removeLocalTransaction(id)
+      publishActivity('deleted', transaction)
+    }
+    return ok
   }
 
   async function addWallet(payload) {

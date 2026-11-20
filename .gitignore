@@ -39,3 +39,7 @@ __screenshots__/
 *.timestamp-*-*.mjs
 
 .env
+.agents
+.firebase
+.kilo
+.vscode
