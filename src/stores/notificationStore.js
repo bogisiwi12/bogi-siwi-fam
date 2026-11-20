@@ -6,13 +6,18 @@ import {
   push,
   query,
   ref as databaseRef,
-  serverTimestamp
+  remove,
+  serverTimestamp,
+  set
 } from 'firebase/database'
-import { rtdb } from '@/firebase/config'
+import { getMessaging, getToken, isSupported } from 'firebase/messaging'
+import { app, rtdb } from '@/firebase/config'
 
 const MAX_HISTORY = 50
 const MAX_TOASTS = 3
 const TOAST_TTL = 8000
+const PUSH_TOKEN_STORAGE_KEY = 'finance-push-token'
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY
 
 const browserSupported = typeof window !== 'undefined' && 'Notification' in window
 
@@ -24,10 +29,15 @@ export const useNotificationStore = defineStore('notifications', () => {
   const unreadCount = ref(0)
   const supported = ref(browserSupported)
   const permission = ref(browserSupported ? Notification.permission : 'unsupported')
+  const pushSupported = ref(browserSupported)
+  const pushRegistered = ref(false)
+  const pushBusy = ref(false)
+  const pushError = ref('')
 
   let unbind = null
   let currentUid = ''
   let initialized = false
+  let messagingPromise = null
   const timers = new Map()
 
   function dismissToast(id) {
@@ -49,6 +59,7 @@ export const useNotificationStore = defineStore('notifications', () => {
 
   function showSystemNotification(entry) {
     if (!browserSupported || permission.value !== 'granted') return
+    if (pushRegistered.value) return
     if (typeof document !== 'undefined' && document.visibilityState === 'visible') return
 
     const actionLabels = { added: 'added', updated: 'updated', deleted: 'deleted' }
@@ -92,6 +103,144 @@ export const useNotificationStore = defineStore('notifications', () => {
       console.error('Requesting notification permission failed:', err)
       return permission.value
     }
+  }
+
+  async function getMessagingInstance() {
+    if (messagingPromise) return messagingPromise
+
+    messagingPromise = (async () => {
+      if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null
+
+      try {
+        if (!(await isSupported())) return null
+        return getMessaging(app)
+      } catch (err) {
+        console.error('Firebase Messaging is not supported:', err)
+        return null
+      }
+    })()
+
+    return messagingPromise
+  }
+
+  async function savePushToken(uid, token) {
+    let previousToken = ''
+    try {
+      previousToken = localStorage.getItem(PUSH_TOKEN_STORAGE_KEY) || ''
+    } catch {
+      /* storage may be unavailable */
+    }
+
+    await set(databaseRef(rtdb, `pushTokens/${uid}/${token}`), {
+      token,
+      uid,
+      ua: navigator.userAgent.slice(0, 200),
+      platform: (navigator.platform || '').slice(0, 60),
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    })
+
+    if (previousToken && previousToken !== token) {
+      try {
+        await remove(databaseRef(rtdb, `pushTokens/${uid}/${previousToken}`))
+      } catch (err) {
+        console.error('Removing rotated push token failed:', err)
+      }
+    }
+
+    try {
+      localStorage.setItem(PUSH_TOKEN_STORAGE_KEY, token)
+    } catch {
+      /* storage may be unavailable */
+    }
+  }
+
+  async function registerPushToken(uid, { silent = false } = {}) {
+    if (!uid) return false
+
+    if (!silent) {
+      pushBusy.value = true
+      pushError.value = ''
+    }
+
+    try {
+      const messaging = await getMessagingInstance()
+      if (!messaging) {
+        pushSupported.value = false
+        if (!silent) pushError.value = 'This browser does not support background push notifications.'
+        return false
+      }
+
+      pushSupported.value = true
+
+      if (permission.value !== 'granted') {
+        if (silent) return false
+        const result = await requestPermission()
+        if (result !== 'granted') {
+          pushError.value = 'Notification permission was not granted.'
+          return false
+        }
+      }
+
+      if (!VAPID_KEY) {
+        if (!silent) pushError.value = 'Missing VAPID key (VITE_FIREBASE_VAPID_KEY).'
+        return false
+      }
+
+      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      await navigator.serviceWorker.ready
+
+      const token = await getToken(messaging, {
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration
+      })
+
+      if (!token) {
+        if (!silent) pushError.value = 'Could not obtain a push token from Firebase.'
+        return false
+      }
+
+      await savePushToken(uid, token)
+      pushRegistered.value = true
+      return true
+    } catch (err) {
+      console.error('Registering background push failed:', err)
+      if (!silent) pushError.value = err?.message || 'Could not enable background push notifications.'
+      return false
+    } finally {
+      if (!silent) pushBusy.value = false
+    }
+  }
+
+  async function enablePush(uid) {
+    return registerPushToken(uid || currentUid)
+  }
+
+  async function disablePush(uid) {
+    const owner = uid || currentUid
+    let token = ''
+
+    try {
+      token = localStorage.getItem(PUSH_TOKEN_STORAGE_KEY) || ''
+    } catch {
+      /* storage may be unavailable */
+    }
+
+    if (owner && token) {
+      try {
+        await remove(databaseRef(rtdb, `pushTokens/${owner}/${token}`))
+      } catch (err) {
+        console.error('Removing push token failed:', err)
+      }
+    }
+
+    try {
+      localStorage.removeItem(PUSH_TOKEN_STORAGE_KEY)
+    } catch {
+      /* storage may be unavailable */
+    }
+
+    pushRegistered.value = false
   }
 
   async function publish(activity) {
@@ -154,6 +303,10 @@ export const useNotificationStore = defineStore('notifications', () => {
         loading.value = false
       }
     )
+
+    if (permission.value === 'granted') {
+      void registerPushToken(actor.uid, { silent: true })
+    }
   }
 
   function unsubscribe() {
@@ -170,6 +323,8 @@ export const useNotificationStore = defineStore('notifications', () => {
     initialized = false
     loading.value = false
     error.value = ''
+    pushError.value = ''
+    pushBusy.value = false
   }
 
   return {
@@ -180,11 +335,17 @@ export const useNotificationStore = defineStore('notifications', () => {
     unreadCount,
     supported,
     permission,
+    pushSupported,
+    pushRegistered,
+    pushBusy,
+    pushError,
     publish,
     subscribe,
     unsubscribe,
     dismissToast,
     markAllRead,
-    requestPermission
+    requestPermission,
+    enablePush,
+    disablePush
   }
 })

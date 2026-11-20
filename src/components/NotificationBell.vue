@@ -2,9 +2,15 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notificationStore'
+import { useAuthStore } from '@/stores/authStore'
 
 const store = useNotificationStore()
+const auth = useAuthStore()
 const router = useRouter()
+
+async function enableBackgroundPush() {
+  await store.enablePush(auth.user?.uid)
+}
 
 const root = ref(null)
 const trigger = ref(null)
@@ -175,34 +181,50 @@ onUnmounted(() => {
 
             <div class="shrink-0 border-b border-gray-100 px-4 py-2.5">
               <button
-                v-if="store.supported && store.permission === 'default'"
+                v-if="store.pushSupported && !store.pushRegistered"
                 type="button"
-                class="w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-3 py-2 text-xs font-bold text-white shadow-sm shadow-blue-200/70 transition-all hover:opacity-90 active:scale-95"
-                @click="store.requestPermission()"
+                class="w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-3 py-2 text-xs font-bold text-white shadow-sm shadow-blue-200/70 transition-all hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="store.pushBusy"
+                @click="enableBackgroundPush"
               >
-                🔔 Enable browser notifications
+                {{ store.pushBusy ? 'Enabling…' : '🔔 Enable background push' }}
               </button>
               <div
-                v-if="store.supported && store.permission === 'default'"
+                v-if="store.pushSupported && !store.pushRegistered"
                 class="mt-2 text-[11px] font-medium text-gray-500"
               >
-                Allow alerts when this app is in the background.
+                Alerts arrive even when this browser is closed (Android supported).
               </div>
               <div
-                v-else-if="store.supported && store.permission === 'granted'"
-                class="flex items-center gap-2 text-[11px] font-semibold text-emerald-600"
+                v-else-if="store.pushRegistered"
+                class="flex items-center justify-between gap-2 text-[11px] font-semibold text-emerald-600"
               >
-                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Browser notifications are enabled.
+                <span class="flex items-center gap-2">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Background push enabled.
+                </span>
+                <button
+                  type="button"
+                  class="rounded-lg px-2 py-1 text-[10px] font-semibold text-gray-400 transition-colors hover:bg-rose-50 hover:text-rose-500"
+                  @click="store.disablePush(auth.user?.uid)"
+                >
+                  Disable
+                </button>
               </div>
               <p
+                v-if="store.pushError"
+                class="mt-2 text-[11px] font-medium text-amber-600"
+              >
+                {{ store.pushError }}
+              </p>
+              <p
                 v-else-if="store.supported && store.permission === 'denied'"
-                class="text-[11px] font-medium text-amber-600"
+                class="mt-2 text-[11px] font-medium text-amber-600"
               >
                 Notifications are blocked. Allow them in your browser's site settings.
               </p>
-              <p v-else class="text-[11px] font-medium text-gray-400">
-                This browser does not support notifications.
+              <p v-else-if="!store.pushSupported" class="mt-2 text-[11px] font-medium text-gray-400">
+                This browser does not support background push notifications.
               </p>
             </div>
 

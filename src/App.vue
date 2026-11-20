@@ -141,6 +141,7 @@ watch(
 
 async function handleLogout() {
   store.dispose()
+  await notifications.disablePush(auth.user?.uid)
   notifications.unsubscribe()
   await auth.logout()
   router.push({ name: 'dashboard' })

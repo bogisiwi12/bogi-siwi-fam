@@ -43,6 +43,37 @@
           ".validate": false
         }
       }
+    },
+    "pushTokens": {
+      ".read": false,
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$tokenId": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['token', 'uid', 'createdAt'])",
+          "token": {
+            ".validate": "newData.isString() && newData.val().length > 20 && newData.val().length <= 4096"
+          },
+          "uid": {
+            ".validate": "newData.isString() && newData.val() === auth.uid"
+          },
+          "ua": {
+            ".validate": "newData.isString() && newData.val().length <= 200"
+          },
+          "platform": {
+            ".validate": "newData.isString() && newData.val().length <= 60"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
     }
   }
 }
