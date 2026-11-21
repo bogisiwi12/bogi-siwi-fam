@@ -45,6 +45,21 @@ rules_version = '2';
 //   - points: int (required, 0-100)
 //   - createdAt: timestamp (optional, immutable)
 //
+// Collection: memberActivityLists/{listId}
+//   Access: read = public (guest allowed); write = owning member only
+//   - memberId: string (required, matches the signed-in user's uid)
+//   - name: string (required, 1-80)
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: memberActivities/{activityId}
+//   Access: read = public (guest allowed); write = owning member only
+//   - memberId: string (required, matches the signed-in user's uid)
+//   - listId: string (required)
+//   - title: string (required, 1-120)
+//   - time: string (required, empty or HH:MM)
+//   - done: bool (required)
+//   - createdAt: timestamp (optional, immutable)
+//
 // Collection: shoppingItems/{itemId}
 //   Access: read = public (guest allowed); write = admin or parent
 //   - name: string (required, 1-80)
@@ -237,6 +252,22 @@ service cloud.firestore {
         && data.points is int && data.points >= 0 && data.points <= 100;
     }
 
+    function isValidMemberActivityList(data) {
+      return data.keys().hasOnly(['memberId', 'name', 'createdAt'])
+        && data.memberId is string && data.memberId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 80;
+    }
+
+    function isValidMemberActivity(data) {
+      return data.keys().hasOnly(['memberId', 'listId', 'title', 'time', 'done', 'createdAt'])
+        && data.memberId is string && data.memberId == request.auth.uid
+        && data.listId is string && data.listId.size() > 0
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+        && data.time is string
+        && (data.time == '' || data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'))
+        && data.done is bool;
+    }
+
     function isValidShoppingItem(data) {
       return data.keys().hasOnly(['name', 'quantity', 'category', 'done', 'createdAt'])
         && data.name is string && data.name.size() > 0 && data.name.size() <= 80
@@ -398,6 +429,35 @@ service cloud.firestore {
         && isValidTask(request.resource.data)
         && createdAtUnchanged();
       allow delete: if isAdminOrParent();
+    }
+
+    // =============================================================
+    // Family member activities
+    // =============================================================
+    match /memberActivityLists/{listId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && isValidMemberActivityList(request.resource.data);
+      allow update: if isSignedIn()
+        && isValidMemberActivityList(request.resource.data)
+        && resource.data.memberId == request.auth.uid
+        && request.resource.data.memberId == resource.data.memberId
+        && createdAtUnchanged();
+      allow delete: if isSignedIn()
+        && resource.data.memberId == request.auth.uid;
+    }
+
+    match /memberActivities/{activityId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && isValidMemberActivity(request.resource.data);
+      allow update: if isSignedIn()
+        && isValidMemberActivity(request.resource.data)
+        && resource.data.memberId == request.auth.uid
+        && request.resource.data.memberId == resource.data.memberId
+        && createdAtUnchanged();
+      allow delete: if isSignedIn()
+        && resource.data.memberId == request.auth.uid;
     }
 
     // =============================================================

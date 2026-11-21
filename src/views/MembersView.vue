@@ -28,6 +28,83 @@ const ruleIcons = [
   '🚪', '🔑', '💡', '🌱', '♻️', '⭐'
 ]
 
+const activeActivityMember = ref(null)
+const newActivityListName = ref('')
+const newActivityDetails = ref({})
+
+function activityListsFor(memberId) {
+  return store.memberActivityLists
+    .filter((list) => list.memberId === memberId)
+    .slice()
+    .sort((a, b) => {
+      const aCreated = a.createdAt?.toMillis?.() ?? 0
+      const bCreated = b.createdAt?.toMillis?.() ?? 0
+      return aCreated - bCreated
+    })
+}
+
+function activitiesForList(listId) {
+  return store.memberActivities
+    .filter((activity) => activity.listId === listId)
+    .slice()
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+}
+
+function activityProgress(memberId) {
+  const listIds = new Set(activityListsFor(memberId).map((list) => list.id))
+  const activities = store.memberActivities.filter((activity) => listIds.has(activity.listId))
+  const done = activities.filter((activity) => activity.done).length
+  return {
+    done,
+    total: activities.length,
+    percent: activities.length ? Math.round((done / activities.length) * 100) : 0
+  }
+}
+
+function canManageMemberActivities(member) {
+  return auth.user?.uid === member.id
+}
+
+function openMemberActivities(member) {
+  activeActivityMember.value = member
+  newActivityListName.value = ''
+  newActivityDetails.value = {}
+  store.error = ''
+}
+
+function closeMemberActivities() {
+  activeActivityMember.value = null
+}
+
+async function handleAddActivityList() {
+  const member = activeActivityMember.value
+  if (!member || !canManageMemberActivities(member)) return
+  if (!newActivityListName.value.trim()) return
+  const ok = await store.addMemberActivityList(member.id, newActivityListName.value)
+  if (ok) newActivityListName.value = ''
+}
+
+async function handleAddActivityDetail(list) {
+  const member = activeActivityMember.value
+  if (!member || !canManageMemberActivities(member)) return
+  const detail = newActivityDetails.value[list.id] || { title: '', time: '' }
+  if (!detail.title.trim()) return
+  const ok = await store.addMemberActivity(
+    member.id,
+    list.id,
+    detail.title,
+    detail.time || ''
+  )
+  if (ok) newActivityDetails.value[list.id] = { title: '', time: '' }
+}
+
+function activityDetail(listId) {
+  if (!newActivityDetails.value[listId]) {
+    newActivityDetails.value[listId] = { title: '', time: '' }
+  }
+  return newActivityDetails.value[listId]
+}
+
 function openEditMember(member) {
   if (!auth.isAdmin) return
   store.error = ''
@@ -190,6 +267,22 @@ async function handleAddRule() {
                 :style="{ backgroundColor: member.color + '20', color: member.color }">
             {{ member.role }}
           </span>
+
+          <div class="mt-4 border-t border-gray-100 pt-3">
+            <div class="mb-1.5 flex items-center justify-between text-[11px] font-semibold">
+              <span class="text-gray-400">Activity progress</span>
+              <span class="text-blue-600">{{ activityProgress(member.id).percent }}%</span>
+            </div>
+            <div class="h-2 overflow-hidden rounded-full bg-gray-100">
+              <div class="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-700"
+                   :style="{ width: `${activityProgress(member.id).percent}%` }" />
+            </div>
+            <button type="button" @click="openMemberActivities(member)"
+                    class="mt-3 w-full rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs font-bold text-blue-600 transition-all duration-300 hover:bg-blue-100 active:scale-95">
+              {{ canManageMemberActivities(member) ? 'Manage activities' : 'View activities' }}
+              · {{ activityProgress(member.id).done }}/{{ activityProgress(member.id).total }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -328,6 +421,114 @@ async function handleAddRule() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="page">
+        <div v-if="activeActivityMember" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="closeMemberActivities" />
+          <div class="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-blue-100 bg-white p-5 shadow-2xl sm:p-6">
+            <div class="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-extrabold text-gray-800">{{ activeActivityMember.name }}'s activities</h2>
+                <p class="mt-1 text-xs text-gray-400">
+                  {{ activityProgress(activeActivityMember.id).done }} completed ·
+                  {{ activityProgress(activeActivityMember.id).total - activityProgress(activeActivityMember.id).done }} remaining
+                </p>
+              </div>
+              <button type="button" @click="closeMemberActivities" title="Close"
+                      class="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+
+            <div v-if="canManageMemberActivities(activeActivityMember)"
+                 class="mb-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+              <form class="flex flex-col gap-2 sm:flex-row" @submit.prevent="handleAddActivityList">
+                <input v-model="newActivityListName" maxlength="80" placeholder="New reusable list name..."
+                       class="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                <button type="submit"
+                        class="rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200/60 transition-all hover:opacity-90 active:scale-95">
+                  Create list
+                </button>
+              </form>
+            </div>
+            <div v-else class="mb-5 rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs font-semibold text-amber-700">
+              👀 View only — only {{ activeActivityMember.name }} can manage these activities.
+            </div>
+
+            <div v-if="store.error"
+                 class="mb-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+              {{ store.error }}
+            </div>
+
+            <div v-if="activityListsFor(activeActivityMember.id).length === 0"
+                 class="rounded-2xl border border-dashed border-gray-200 py-10 text-center">
+              <p class="text-2xl">🌱</p>
+              <p class="mt-2 text-sm font-semibold text-gray-600">No activity lists yet</p>
+            </div>
+            <div v-else class="space-y-3">
+              <section v-for="list in activityListsFor(activeActivityMember.id)" :key="list.id"
+                       class="overflow-hidden rounded-2xl border border-blue-100 bg-white">
+                <div class="flex items-center justify-between gap-3 border-b border-blue-50 bg-blue-50/50 px-3 py-3">
+                  <h3 class="text-sm font-bold text-gray-800">{{ list.name }}</h3>
+                  <button v-if="canManageMemberActivities(activeActivityMember)"
+                          type="button" @click="store.removeMemberActivityList(list.id)"
+                          class="rounded-lg px-2 py-1 text-xs font-semibold text-red-400 hover:bg-red-50 hover:text-red-600">
+                    Remove list
+                  </button>
+                </div>
+
+                <form v-if="canManageMemberActivities(activeActivityMember)"
+                      class="flex flex-col gap-2 border-b border-gray-100 p-3 sm:flex-row"
+                      @submit.prevent="handleAddActivityDetail(list)">
+                  <input v-model="activityDetail(list.id).title" maxlength="120" placeholder="Activity detail..."
+                         class="min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                  <input v-model="activityDetail(list.id).time" type="time"
+                         class="rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                  <button type="submit"
+                          class="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 active:scale-95">
+                    Add detail
+                  </button>
+                </form>
+
+                <div v-if="activitiesForList(list.id).length === 0"
+                     class="px-3 py-5 text-center text-xs text-gray-400">
+                  No activity details in this list.
+                </div>
+                <div v-else class="divide-y divide-gray-100">
+                  <div v-for="activity in activitiesForList(list.id)" :key="activity.id"
+                       class="flex items-center gap-3 p-3 transition-colors hover:bg-gray-50/70">
+                    <button v-if="canManageMemberActivities(activeActivityMember)"
+                            type="button" @click="store.toggleMemberActivity(activity.id)"
+                            class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 text-xs transition-all hover:scale-110 active:scale-90"
+                            :class="activity.done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-blue-300 text-transparent hover:border-blue-500'">
+                      ✓
+                    </button>
+                    <span v-else
+                          class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 text-xs"
+                          :class="activity.done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-200 bg-gray-50 text-transparent'">
+                      ✓
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm font-medium"
+                         :class="activity.done ? 'line-through text-gray-400' : 'text-gray-700'">
+                        {{ activity.title }}
+                      </p>
+                      <p class="text-[11px] text-gray-400">{{ activity.time || 'No time set' }}</p>
+                    </div>
+                    <button v-if="canManageMemberActivities(activeActivityMember)"
+                            type="button" @click="store.removeMemberActivity(activity.id)"
+                            class="rounded-lg px-2 py-1 text-xs font-semibold text-red-400 hover:bg-red-50 hover:text-red-600">
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </div>
           </div>
         </div>
       </Transition>

@@ -50,6 +50,8 @@ export const useFamilyStore = defineStore('family', () => {
   // --- Family Members & Rules ---
   const members = ref([])
   const rules = ref([])
+  const memberActivityLists = ref([])
+  const memberActivities = ref([])
 
   // --- Tasks & Chores ---
   const tasks = ref([])
@@ -67,7 +69,9 @@ export const useFamilyStore = defineStore('family', () => {
     ['members', members],
     ['rules', rules],
     ['tasks', tasks],
-    ['shoppingItems', shoppingList]
+    ['shoppingItems', shoppingList],
+    ['memberActivityLists', memberActivityLists],
+    ['memberActivities', memberActivities]
   ]
 
   // --- Computed ---
@@ -181,6 +185,8 @@ export const useFamilyStore = defineStore('family', () => {
     rules.value = []
     tasks.value = []
     shoppingList.value = []
+    memberActivityLists.value = []
+    memberActivities.value = []
   }
 
   // --- Family member presentation ---
@@ -195,6 +201,54 @@ export const useFamilyStore = defineStore('family', () => {
       batch.update(doc(db, 'members', id), { order: index })
     })
     return persist(batch.commit(), 'Updating member order')
+  }
+
+  // --- Member activities ---
+  function addMemberActivityList(memberId, name) {
+    return persist(
+      addDoc(collection(db, 'memberActivityLists'), {
+        memberId,
+        name: name.trim(),
+        createdAt: serverTimestamp()
+      }),
+      'Adding activity list'
+    )
+  }
+
+  function removeMemberActivityList(id) {
+    const batch = writeBatch(db)
+    batch.delete(doc(db, 'memberActivityLists', id))
+    memberActivities.value
+      .filter((activity) => activity.listId === id)
+      .forEach((activity) => batch.delete(doc(db, 'memberActivities', activity.id)))
+    return persist(batch.commit(), 'Removing activity list')
+  }
+
+  function addMemberActivity(memberId, listId, title, time) {
+    return persist(
+      addDoc(collection(db, 'memberActivities'), {
+        memberId,
+        listId,
+        title: title.trim(),
+        time,
+        done: false,
+        createdAt: serverTimestamp()
+      }),
+      'Adding member activity'
+    )
+  }
+
+  function toggleMemberActivity(id) {
+    const activity = memberActivities.value.find((item) => item.id === id)
+    if (!activity) return
+    return persist(
+      updateDoc(doc(db, 'memberActivities', id), { done: !activity.done }),
+      'Updating member activity'
+    )
+  }
+
+  function removeMemberActivity(id) {
+    return persist(deleteDoc(doc(db, 'memberActivities', id)), 'Removing member activity')
   }
 
   // --- Rules ---
@@ -278,11 +332,13 @@ export const useFamilyStore = defineStore('family', () => {
   }
 
   return {
-    members, rules, tasks, shoppingList,
+    members, rules, tasks, shoppingList, memberActivityLists, memberActivities,
     loading, error,
     pendingTasks, shoppingProgress,
     init, dispose,
     updateMember, reorderMembers,
+    addMemberActivityList, removeMemberActivityList,
+    addMemberActivity, toggleMemberActivity, removeMemberActivity,
     addRule, updateRule, removeRule,
     addTask, toggleTask, updateTask, removeTask,
     addShoppingItem, toggleShoppingItem, updateShoppingItem, removeShoppingItem
