@@ -8,6 +8,7 @@ import {
   isBookingReceiptDriveConfigured,
   uploadBookingReceipt
 } from '@/services/googleDrive'
+import MarqueeText from '@/components/MarqueeText.vue'
 
 const store = useHolidayStore()
 const auth = useAuthStore()
@@ -138,9 +139,38 @@ function receiptIsImage(item) {
   return /\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(name)
 }
 
-function openReceipt(url, title) {
+function isReceiptPreviewImage(itemOrUrl) {
+  if (itemOrUrl && typeof itemOrUrl === 'object') return receiptIsImage(itemOrUrl)
+  return /\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(String(itemOrUrl || ''))
+}
+
+function receiptPreviewUrl(url, isImage) {
+  const normalized = normalizeItineraryImageUrl(url)
+  if (isImage) return normalized
+  try {
+    const parsed = new URL(normalized)
+    if (parsed.origin === 'https://www.googleapis.com' && parsed.pathname.startsWith('/drive/v3/files/')) {
+      const id = parsed.pathname.split('/').pop()
+      if (id) return `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`
+    }
+    if (parsed.origin === 'https://drive.google.com') {
+      const match = parsed.pathname.match(/^\/file\/d\/([^/]+)/)
+      if (match) return `https://drive.google.com/file/d/${match[1]}/preview`
+    }
+  } catch {
+    // Fall back to the normalized URL.
+  }
+  return normalized
+}
+
+function openReceipt(url, title, item = null) {
   if (!url) return
-  viewingReceipt.value = { url: normalizeItineraryImageUrl(url), title }
+  const isImage = isReceiptPreviewImage(item || url)
+  viewingReceipt.value = {
+    url: receiptPreviewUrl(url, isImage),
+    title,
+    isImage
+  }
 }
 
 function closeReceipt() {
@@ -475,7 +505,10 @@ onUnmounted(() => {
               </span>
 
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-bold text-gray-800">{{ activity.title }}</p>
+                <MarqueeText
+                  :text="activity.title"
+                  class="text-sm font-bold text-gray-800"
+                />
                 <p class="truncate text-xs text-gray-400">
                   {{ categoryMeta(activity.category).label }}
                   <template v-if="activity.location"> · 📍 {{ activity.location }}</template>
@@ -508,19 +541,18 @@ onUnmounted(() => {
                     v-if="receiptIsImage(bookingFor(activity.id))"
                     type="button"
                     class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-gray-600 transition-all hover:border-blue-200 hover:text-blue-600 active:scale-95"
-                    @click="openReceipt(bookingFor(activity.id).receiptUrl, activity.title)"
+                    @click="openReceipt(bookingFor(activity.id).receiptUrl, activity.title, bookingFor(activity.id))"
                   >
                     🧾 Receipt
                   </button>
-                  <a
+                  <button
                     v-else
-                    :href="normalizeItineraryImageUrl(bookingFor(activity.id).receiptUrl)"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    type="button"
                     class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-gray-600 transition-all hover:border-blue-200 hover:text-blue-600 active:scale-95"
+                    @click="openReceipt(bookingFor(activity.id).receiptUrl, activity.title, bookingFor(activity.id))"
                   >
-                    🧾 Receipt
-                  </a>
+                    🧾 Preview
+                  </button>
                 </template>
                 <button
                   v-if="canManage"
@@ -599,7 +631,7 @@ onUnmounted(() => {
                       v-if="receiptIsImage(bookingForm)"
                       type="button"
                       class="relative shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-white shadow-sm"
-                      @click="openReceipt(bookingForm.receiptUrl, bookingForm.receiptName)"
+                      @click="openReceipt(bookingForm.receiptUrl, bookingForm.receiptName || 'Receipt', bookingForm)"
                     >
                       <img
                         :src="normalizeItineraryImageUrl(bookingForm.receiptUrl)"
@@ -607,12 +639,14 @@ onUnmounted(() => {
                         class="h-16 w-16 object-cover"
                       />
                     </button>
-                    <div
+                    <button
                       v-else
-                      class="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-white text-2xl shadow-sm"
+                      type="button"
+                      class="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-white text-2xl shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/40 active:scale-95"
+                      @click="openReceipt(bookingForm.receiptUrl, bookingForm.receiptName || 'Receipt', bookingForm)"
                     >
                       📄
-                    </div>
+                    </button>
                   </template>
                   <div
                     v-else
@@ -644,15 +678,14 @@ onUnmounted(() => {
                               : 'Upload receipt'
                         }}
                       </button>
-                      <a
+                      <button
                         v-if="bookingForm.receiptUrl && !receiptIsImage(bookingForm)"
-                        :href="normalizeItineraryImageUrl(bookingForm.receiptUrl)"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-600 transition-all hover:border-blue-200 hover:text-blue-600"
+                        type="button"
+                        class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-600 transition-all hover:border-blue-200 hover:text-blue-600 active:scale-95"
+                        @click="openReceipt(bookingForm.receiptUrl, bookingForm.receiptName || 'Receipt', bookingForm)"
                       >
-                        Open
-                      </a>
+                        Preview
+                      </button>
                       <button
                         v-if="bookingForm.receiptUrl"
                         type="button"
@@ -764,11 +797,18 @@ onUnmounted(() => {
         >
           ✕
         </button>
-        <figure class="flex max-h-full max-w-6xl flex-col items-center" @click.stop>
+        <figure class="flex max-h-full w-full max-w-6xl flex-col items-center" @click.stop>
           <img
+            v-if="viewingReceipt.isImage"
             :src="viewingReceipt.url"
             :alt="viewingReceipt.title"
             class="max-h-[85vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl"
+          />
+          <iframe
+            v-else
+            :src="viewingReceipt.url"
+            :title="viewingReceipt.title || 'Receipt preview'"
+            class="h-[85vh] w-full rounded-2xl bg-white shadow-2xl"
           />
           <figcaption
             v-if="viewingReceipt.title"
