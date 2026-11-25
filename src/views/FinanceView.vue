@@ -978,7 +978,7 @@ onUnmounted(() => {
                     : 'bg-gradient-to-r from-amber-400 to-orange-400'
                 "
                 :style="{
-                  width: `${wallet.creditLimit ? Math.min(100, (wallet.outstandingAmount / wallet.creditLimit) * 100) : 0}%`,
+                  width: `${wallet.creditLimit ? Math.min(100, (wallet.availableCredit / wallet.creditLimit) * 100) : 0}%`,
                 }"
               />
             </div>
