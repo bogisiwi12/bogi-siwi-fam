@@ -2,10 +2,13 @@ const CLIENT_ID = import.meta.env.VITE_CLIENT_ID
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY
 const MEMBER_FOLDER_ID = import.meta.env.VITE_GOOGLE_DRIVE_MEMBER_PICTURE_FOLDER_ID
 const ITINERARY_FOLDER_ID = import.meta.env.VITE_GOOGLE_DRIVE_ITINERARY_IMAGES_FOLDER_ID
+const BOOKING_RECEIPTS_FOLDER_ID = import.meta.env
+  .VITE_GOOGLE_DRIVE_BOOKING_RECEIPTS_FOLDER_ID
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const GIS_SRC = 'https://accounts.google.com/gsi/client'
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024
+const MAX_RECEIPT_BYTES = 15 * 1024 * 1024
 const MAX_DIMENSION = 1024
 const MAX_ITINERARY_DIMENSION = 1600
 
@@ -21,6 +24,10 @@ export function isDriveConfigured() {
 
 export function isItineraryDriveConfigured() {
   return Boolean(CLIENT_ID && ITINERARY_FOLDER_ID)
+}
+
+export function isBookingReceiptDriveConfigured() {
+  return Boolean(CLIENT_ID && (BOOKING_RECEIPTS_FOLDER_ID || ITINERARY_FOLDER_ID))
 }
 
 function loadGis() {
@@ -209,26 +216,19 @@ export function normalizeItineraryImageUrl(url) {
   return fileId ? getItineraryImageUrl(fileId) : url
 }
 
-async function uploadImage(file, folderId, filePrefix, maxDimension) {
-  if (!file) throw new Error('No image selected.')
-  if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.')
-  if (file.size > MAX_SOURCE_BYTES) throw new Error('Image is too large (maximum 20 MB).')
-
-  const token = await getAccessToken()
-  const image = await prepareImage(file, maxDimension)
-
+async function uploadBlob(blob, fileName, mimeType, folderId, token) {
   const metadata = {
-    name: `${filePrefix}-${Date.now()}.jpg`,
-    mimeType: 'image/jpeg',
+    name: fileName,
+    mimeType,
     parents: [folderId]
   }
 
   const form = new FormData()
   form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }))
-  form.append('file', image)
+  form.append('file', blob, fileName)
 
   const uploadResponse = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType',
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
@@ -254,14 +254,32 @@ async function uploadImage(file, folderId, filePrefix, maxDimension) {
   if (!permissionResponse.ok) {
     const message = await readError(permissionResponse)
     await deleteFile(uploaded.id, token)
-    throw new Error(`Could not share the uploaded picture: ${message}`)
+    throw new Error(`Could not share the uploaded file: ${message}`)
   }
 
   return {
     id: uploaded.id,
     name: uploaded.name,
+    mimeType: uploaded.mimeType || mimeType,
     url: getItineraryImageUrl(uploaded.id)
   }
+}
+
+async function uploadImage(file, folderId, filePrefix, maxDimension) {
+  if (!file) throw new Error('No image selected.')
+  if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.')
+  if (file.size > MAX_SOURCE_BYTES) throw new Error('Image is too large (maximum 20 MB).')
+
+  const token = await getAccessToken()
+  const image = await prepareImage(file, maxDimension)
+
+  return uploadBlob(
+    image,
+    `${filePrefix}-${Date.now()}.jpg`,
+    'image/jpeg',
+    folderId,
+    token
+  )
 }
 
 /**
@@ -295,4 +313,37 @@ export async function uploadItineraryImage(file, label = 'activity') {
     `itinerary-${slug(label, 'activity')}`,
     MAX_ITINERARY_DIMENSION
   )
+}
+
+/**
+ * Uploads a booking receipt (image or PDF) to the configured Google Drive
+ * folder and makes it publicly readable so it can be attached to a booking.
+ * Falls back to the itinerary images folder when no dedicated folder is set.
+ */
+export async function uploadBookingReceipt(file, label = 'booking') {
+  if (!isBookingReceiptDriveConfigured()) {
+    throw new Error(
+      'Booking receipt uploads are not configured. Set VITE_CLIENT_ID and VITE_GOOGLE_DRIVE_BOOKING_RECEIPTS_FOLDER_ID (or the itinerary images folder) in .env.'
+    )
+  }
+
+  if (!file) throw new Error('No receipt selected.')
+  const isImage = file.type.startsWith('image/')
+  const isPdf = file.type === 'application/pdf'
+  if (!isImage && !isPdf) throw new Error('Please choose an image or PDF receipt.')
+  if (file.size > MAX_RECEIPT_BYTES) {
+    throw new Error('Receipt is too large (maximum 15 MB).')
+  }
+
+  const folderId = BOOKING_RECEIPTS_FOLDER_ID || ITINERARY_FOLDER_ID
+  const token = await getAccessToken()
+  const stamp = Date.now()
+  const prefix = `receipt-${slug(label, 'booking')}-${stamp}`
+
+  if (isImage) {
+    const image = await prepareImage(file, MAX_ITINERARY_DIMENSION)
+    return uploadBlob(image, `${prefix}.jpg`, 'image/jpeg', folderId, token)
+  }
+
+  return uploadBlob(file, `${prefix}.pdf`, 'application/pdf', folderId, token)
 }

@@ -126,6 +126,28 @@ rules_version = '2';
 //   - imageUrl: string (optional, empty or https URL, <=1500)
 //   - createdAt: timestamp (optional, immutable)
 //
+// Collection: itineraries/{tripId}/bookings/{activityId}
+//   Access: read = public (guest allowed); write = admin or parent
+//   Booking doc id equals the itinerary activity id (one booking per activity).
+//   - activityId: string (required, 1-128, must equal {activityId})
+//   - dayId: string (required, <=128)
+//   - dayDate: string (required, YYYY-MM-DD)
+//   - dayTitle: string (required, <=100)
+//   - title: string (required, 1-120)
+//   - category: string (required, sightseeing/food/transport/stay/adventure/shopping/mass/other)
+//   - plannedCost: number (required, 0-10000000)
+//   - realizationCost: number (required, 0-10000000)
+//   - currency: string (required, 1-8)
+//   - receiptUrl: string (optional, empty or https URL, <=1500)
+//   - receiptFileId: string (optional, <=200)
+//   - receiptName: string (optional, <=200)
+//   - receiptMime: string (optional, <=100)
+//   - notes: string (optional, <=500)
+//   - createdBy: string (optional, <=128)
+//   - createdByName: string (optional, <=60)
+//   - createdAt: timestamp (optional, immutable)
+//   - updatedAt: timestamp (optional)
+//
 // ===============================================================
 
 service cloud.firestore {
@@ -355,6 +377,32 @@ service cloud.firestore {
           && (data.imageUrl == '' || data.imageUrl.matches('^https://.+'))));
     }
 
+    function isValidBooking(data) {
+      return data.keys().hasOnly([
+          'activityId', 'dayId', 'dayDate', 'dayTitle', 'title', 'category',
+          'plannedCost', 'realizationCost', 'currency',
+          'receiptUrl', 'receiptFileId', 'receiptName', 'receiptMime', 'notes',
+          'createdBy', 'createdByName', 'createdAt', 'updatedAt'
+        ])
+        && data.activityId is string && data.activityId.size() > 0 && data.activityId.size() <= 128
+        && data.dayId is string && data.dayId.size() <= 128
+        && isValidIsoDate(data.dayDate)
+        && data.dayTitle is string && data.dayTitle.size() <= 100
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+        && data.category in ['sightseeing', 'food', 'transport', 'stay', 'adventure', 'shopping', 'mass', 'other']
+        && data.plannedCost is number && data.plannedCost >= 0 && data.plannedCost <= 10000000
+        && data.realizationCost is number && data.realizationCost >= 0 && data.realizationCost <= 10000000
+        && data.currency is string && data.currency.size() > 0 && data.currency.size() <= 8
+        && data.receiptUrl is string && data.receiptUrl.size() <= 1500
+        && (data.receiptUrl == '' || data.receiptUrl.matches('^https://.+'))
+        && data.receiptFileId is string && data.receiptFileId.size() <= 200
+        && data.receiptName is string && data.receiptName.size() <= 200
+        && data.receiptMime is string && data.receiptMime.size() <= 100
+        && data.notes is string && data.notes.size() <= 500
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdByName is string && data.createdByName.size() <= 60;
+    }
+
     // =============================================================
     // User profiles (owner or admin, contains PII)
     // =============================================================
@@ -558,6 +606,19 @@ service cloud.firestore {
             && createdAtUnchanged();
           allow delete: if isAdminOrParent();
         }
+      }
+
+      match /bookings/{activityId} {
+        allow read: if true;
+        allow create: if isAdminOrParent()
+          && exists(tripPath(tripId))
+          && isValidBooking(request.resource.data)
+          && request.resource.data.activityId == activityId;
+        allow update: if isAdminOrParent()
+          && isValidBooking(request.resource.data)
+          && request.resource.data.activityId == activityId
+          && createdAtUnchanged();
+        allow delete: if isAdminOrParent();
       }
     }
   }

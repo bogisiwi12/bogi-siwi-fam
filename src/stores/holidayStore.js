@@ -7,6 +7,7 @@ import {
   updateDoc,
   deleteDoc,
   getDocs,
+  setDoc,
   onSnapshot,
   orderBy,
   query,
@@ -71,16 +72,39 @@ function normalizeActivity(payload) {
   }
 }
 
+function normalizeBooking(payload) {
+  return {
+    activityId: toText(payload.activityId).slice(0, 128),
+    dayId: toText(payload.dayId).slice(0, 128),
+    dayDate: toText(payload.dayDate),
+    dayTitle: toText(payload.dayTitle).slice(0, 100),
+    title: toText(payload.title).slice(0, 120),
+    category: ACTIVITY_CATEGORIES.includes(payload.category) ? payload.category : 'other',
+    plannedCost: Math.max(0, toNumber(payload.plannedCost, 0)),
+    realizationCost: Math.max(0, toNumber(payload.realizationCost, 0)),
+    currency: toText(payload.currency).slice(0, 8) || 'USD',
+    receiptUrl: toText(payload.receiptUrl).slice(0, 1500),
+    receiptFileId: toText(payload.receiptFileId).slice(0, 200),
+    receiptName: toText(payload.receiptName).slice(0, 200),
+    receiptMime: toText(payload.receiptMime).slice(0, 100),
+    notes: toText(payload.notes).slice(0, 500),
+    createdBy: toText(payload.createdBy).slice(0, 128),
+    createdByName: toText(payload.createdByName).slice(0, 60)
+  }
+}
+
 export const useHolidayStore = defineStore('holiday', () => {
   const trips = ref([])
   const days = ref([])
   const activitiesByDay = ref({})
+  const bookingsByActivity = ref({})
 
   const loading = ref(false)
   const error = ref('')
 
   let tripsUnbind = null
   let daysUnbind = null
+  let bookingsUnbind = null
   let initPromise = null
   let activeTripId = null
   const dayUnbinders = new Map()
@@ -160,6 +184,27 @@ export const useHolidayStore = defineStore('holiday', () => {
     for (const dayDoc of dayDocs) bindDayActivities(tripId, dayDoc.id)
   }
 
+  function bindBookings(tripId) {
+    if (bookingsUnbind) {
+      bookingsUnbind()
+      bookingsUnbind = null
+    }
+    bookingsByActivity.value = {}
+    const q = query(
+      collection(db, 'itineraries', tripId, 'bookings'),
+      orderBy('createdAt')
+    )
+    bookingsUnbind = onSnapshot(
+      q,
+      (snapshot) => {
+        const next = {}
+        for (const d of snapshot.docs) next[d.id] = { id: d.id, ...d.data() }
+        bookingsByActivity.value = next
+      },
+      (err) => handleError('Loading bookings', err)
+    )
+  }
+
   function watchTrip(tripId) {
     clearTrip()
     if (!tripId) return
@@ -174,6 +219,7 @@ export const useHolidayStore = defineStore('holiday', () => {
       },
       (err) => handleError('Loading trip days', err)
     )
+    bindBookings(tripId)
   }
 
   function clearTrip() {
@@ -181,10 +227,15 @@ export const useHolidayStore = defineStore('holiday', () => {
       daysUnbind()
       daysUnbind = null
     }
+    if (bookingsUnbind) {
+      bookingsUnbind()
+      bookingsUnbind = null
+    }
     for (const unbind of dayUnbinders.values()) unbind()
     dayUnbinders.clear()
     days.value = []
     activitiesByDay.value = {}
+    bookingsByActivity.value = {}
     activeTripId = null
   }
 
@@ -313,10 +364,66 @@ export const useHolidayStore = defineStore('holiday', () => {
     )
   }
 
-  function removeActivity(tripId, dayId, activityId) {
+  async function removeActivity(tripId, dayId, activityId) {
+    await persist(
+      deleteDoc(doc(db, 'itineraries', tripId, 'bookings', activityId)),
+      'Removing booking'
+    )
     return persist(
       deleteDoc(doc(db, 'itineraries', tripId, 'days', dayId, 'activities', activityId)),
       'Removing activity'
+    )
+  }
+
+  async function saveBooking(tripId, activity, payload) {
+    error.value = ''
+    const booking = normalizeBooking({ ...payload, activityId: activity.id })
+    if (!booking.activityId) {
+      error.value = 'Missing itinerary activity.'
+      return false
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(booking.dayDate)) {
+      error.value = 'The itinerary day date is invalid. Please fix the day date and try again.'
+      return false
+    }
+    if (
+      booking.plannedCost > MAX_ACTIVITY_COST ||
+      booking.realizationCost > MAX_ACTIVITY_COST
+    ) {
+      error.value = `Cost cannot exceed ${MAX_ACTIVITY_COST.toLocaleString()}.`
+      return false
+    }
+
+    const existing = bookingsByActivity.value[booking.activityId]
+    const data = {
+      ...booking,
+      updatedAt: serverTimestamp()
+    }
+
+    if (existing) {
+      data.createdBy = existing.createdBy || booking.createdBy
+      data.createdByName = existing.createdByName || booking.createdByName
+      if (existing.createdAt) data.createdAt = existing.createdAt
+    } else {
+      data.createdAt = serverTimestamp()
+    }
+
+    try {
+      await setDoc(
+        doc(db, 'itineraries', tripId, 'bookings', booking.activityId),
+        data
+      )
+      return true
+    } catch (err) {
+      handleError('Saving booking', err)
+      return false
+    }
+  }
+
+  function removeBooking(tripId, activityId) {
+    return persist(
+      deleteDoc(doc(db, 'itineraries', tripId, 'bookings', activityId)),
+      'Removing booking'
     )
   }
 
@@ -336,6 +443,7 @@ export const useHolidayStore = defineStore('holiday', () => {
     trips,
     days,
     activitiesByDay,
+    bookingsByActivity,
     loading,
     error,
     init,
@@ -350,6 +458,8 @@ export const useHolidayStore = defineStore('holiday', () => {
     removeDay,
     addActivity,
     updateActivity,
-    removeActivity
+    removeActivity,
+    saveBooking,
+    removeBooking
   }
 })

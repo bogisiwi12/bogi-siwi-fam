@@ -22,7 +22,20 @@ const allNavItems = [
   { path: '/members', label: 'Members & Rules', shortLabel: 'Members', icon: '👨‍👩‍👧‍👦' },
   { path: '/tasks', label: 'Tasks & Chores', shortLabel: 'Tasks', icon: '✅' },
   { path: '/shopping', label: 'Shopping', shortLabel: 'Shopping', icon: '🛒' },
-  { path: '/holiday', label: 'Holiday Planner', shortLabel: 'Holiday', icon: '✈️' },
+  {
+    path: '/holiday',
+    label: 'Holiday Planner',
+    shortLabel: 'Holiday',
+    icon: '✈️',
+    children: [
+      {
+        path: '/holiday/bookings',
+        label: 'Booking Transactions',
+        shortLabel: 'Bookings',
+        icon: '🧾'
+      }
+    ]
+  },
   {
     path: '/finance',
     label: 'Finance',
@@ -75,7 +88,32 @@ function isNavActive(item) {
   return Boolean(item.children?.some((child) => route.path === child.path))
 }
 
+function hasMobileChildren(item) {
+  return Boolean(item.children?.length)
+}
+
+function handleMobileNavClick(event, item) {
+  if (!hasMobileChildren(item)) {
+    expandedMobileNav.value = null
+    return
+  }
+
+  if (expandedMobileNav.value !== item.path) {
+    event.preventDefault()
+    expandedMobileNav.value = item.path
+    return
+  }
+
+  expandedMobileNav.value = null
+}
+
+const expandedMobileItem = computed(
+  () => navItems.value.find((item) => item.path === expandedMobileNav.value) || null
+)
+
 const mobileNav = ref(null)
+const mobileBottomNav = ref(null)
+const expandedMobileNav = ref(null)
 const FIRESTORE_REFRESH_THRESHOLD = 30_000
 let hiddenAt = null
 let reconnectingFirestore = false
@@ -126,20 +164,29 @@ function handlePageShow(event) {
   void reconnectFirestore()
 }
 
+function handleDocumentClick(event) {
+  if (!expandedMobileNav.value) return
+  const nav = mobileBottomNav.value
+  if (nav && !nav.contains(event.target)) expandedMobileNav.value = null
+}
+
 onMounted(() => {
   centerActiveMobileNav()
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  document.addEventListener('click', handleDocumentClick)
   window.addEventListener('pageshow', handlePageShow)
 })
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  document.removeEventListener('click', handleDocumentClick)
   window.removeEventListener('pageshow', handlePageShow)
 })
 
 watch(
   () => route.path,
   async () => {
+    expandedMobileNav.value = null
     await nextTick()
     centerActiveMobileNav()
   }
@@ -325,22 +372,50 @@ async function handleLogout() {
       </div>
 
       <!-- Mobile Bottom Nav -->
-      <nav class="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-blue-100/70 bg-white/85 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_-12px_rgba(37,99,235,0.25)] backdrop-blur-xl"
+      <nav ref="mobileBottomNav" class="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-blue-100/70 bg-white/85 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_-12px_rgba(37,99,235,0.25)] backdrop-blur-xl"
         aria-label="Main navigation">
+        <div
+          v-if="expandedMobileItem"
+          class="border-b border-blue-100/70 px-3 py-2"
+        >
+          <div class="flex items-center justify-center gap-2">
+            <RouterLink
+              v-for="child in expandedMobileItem.children"
+              :key="child.path"
+              :to="child.path"
+              class="flex min-w-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
+              :class="route.path === child.path
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-sm shadow-blue-200/70'
+                : 'bg-blue-50/80 text-gray-600 hover:bg-blue-100 hover:text-blue-600'"
+              @click="expandedMobileNav = null"
+            >
+              <span class="text-sm">{{ child.icon }}</span>
+              <span class="truncate">{{ child.shortLabel || child.label }}</span>
+            </RouterLink>
+          </div>
+        </div>
+
         <div ref="mobileNav"
           class="flex min-w-full snap-x snap-mandatory items-stretch justify-around gap-0.5 overflow-x-auto px-1.5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <RouterLink v-for="item in navItems" :key="item.path" :to="item.path"
             class="group relative flex min-w-[40px] flex-1 basis-0 snap-center flex-col items-center gap-0.5 rounded-2xl px-1 py-2 text-[9px] font-semibold leading-tight transition-all duration-300 min-[380px]:text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
-            :class="isNavActive(item) ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'">
+            :class="isNavActive(item) ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'"
+            @click="handleMobileNavClick($event, item)"
+          >
             <span class="absolute inset-0 rounded-2xl transition-all duration-300"
-              :class="isNavActive(item)
+              :class="isNavActive(item) || expandedMobileNav === item.path
                 ? 'bg-gradient-to-b from-blue-50 to-cyan-50 shadow-sm ring-1 ring-blue-100'
                 : 'bg-transparent group-hover:bg-blue-50/70'" />
             <span v-if="isNavActive(item)"
               class="absolute -top-0.5 h-1 w-6 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 shadow-sm" />
             <span class="relative text-base transition-transform duration-300 min-[380px]:text-lg"
-              :class="isNavActive(item) ? 'scale-110' : 'group-hover:scale-105'">{{ item.icon }}</span>
+              :class="isNavActive(item) || expandedMobileNav === item.path ? 'scale-110' : 'group-hover:scale-105'">{{ item.icon }}</span>
             <span class="relative w-full truncate text-center">{{ item.shortLabel }}</span>
+            <span
+              v-if="hasMobileChildren(item)"
+              class="relative text-[8px] leading-none transition-transform duration-200"
+              :class="expandedMobileNav === item.path ? 'rotate-180 text-blue-500' : 'text-gray-300'"
+            >▾</span>
           </RouterLink>
         </div>
       </nav>

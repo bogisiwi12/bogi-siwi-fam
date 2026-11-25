@@ -22,6 +22,11 @@ const router = createRouter({
       component: () => import('@/views/HolidayPlannerView.vue')
     },
     {
+      path: '/holiday/bookings',
+      name: 'holiday-bookings',
+      component: () => import('@/views/HolidayBookingsView.vue')
+    },
+    {
       path: '/finance',
       name: 'finance',
       component: () => import('@/views/FinanceView.vue'),
