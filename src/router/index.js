@@ -28,6 +28,12 @@ const router = createRouter({
       meta: { requiresManager: true }
     },
     {
+      path: '/finance/entries',
+      name: 'finance-entries',
+      component: () => import('@/views/FinanceEntriesView.vue'),
+      meta: { requiresManager: true }
+    },
+    {
       path: '/users',
       name: 'users',
       component: () => import('@/views/UsersView.vue'),

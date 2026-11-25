@@ -28,7 +28,16 @@ const allNavItems = [
     label: 'Finance',
     shortLabel: 'Finance',
     icon: '💰',
-    managerOnly: true
+    managerOnly: true,
+    children: [
+      {
+        path: '/finance/entries',
+        label: 'Goals & Debts',
+        shortLabel: 'Goals',
+        icon: '🎯',
+        managerOnly: true
+      }
+    ]
   },
   {
     path: '/users',
@@ -40,12 +49,31 @@ const allNavItems = [
 ]
 
 const navItems = computed(() =>
-  allNavItems.filter((item) => {
-    if (item.adminOnly && !auth.isAdmin) return false
-    if (item.managerOnly && !auth.isAdmin && !auth.isParent) return false
-    return true
-  })
+  allNavItems
+    .filter((item) => {
+      if (item.adminOnly && !auth.isAdmin) return false
+      if (item.managerOnly && !auth.isAdmin && !auth.isParent) return false
+      return true
+    })
+    .map((item) =>
+      item.children
+        ? {
+            ...item,
+            children: item.children.filter((child) => {
+              if (child.adminOnly && !auth.isAdmin) return false
+              if (child.managerOnly && !auth.isAdmin && !auth.isParent) return false
+              return true
+            })
+          }
+        : item
+    )
+    .filter((item) => !item.children || item.children.length)
 )
+
+function isNavActive(item) {
+  if (route.path === item.path) return true
+  return Boolean(item.children?.some((child) => route.path === child.path))
+}
 
 const mobileNav = ref(null)
 const FIRESTORE_REFRESH_THRESHOLD = 30_000
@@ -200,22 +228,37 @@ async function handleLogout() {
           <p class="text-xs text-gray-400 mb-8">Family Management Hub</p>
 
           <nav class="flex-1 space-y-1.5 overflow-y-auto pr-1" aria-label="Main navigation">
-            <RouterLink v-for="(item, i) in navItems" :key="item.path" :to="item.path"
-              class="group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-300 anim-fade-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-2"
-              :style="{ '--delay': `${i * 60}ms` }"
-              :class="$route.path === item.path
-                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-200/70'
-                : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'">
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg transition-all duration-300"
-                :class="$route.path === item.path
-                  ? 'bg-white/20 scale-105'
-                  : 'bg-blue-50/80 group-hover:bg-blue-100 group-hover:scale-105'">
-                {{ item.icon }}
-              </span>
-              <span class="flex-1 truncate">{{ item.label }}</span>
-              <span v-if="$route.path === item.path"
-                class="h-1.5 w-1.5 rounded-full bg-white/90 anim-pop" />
-            </RouterLink>
+            <template v-for="(item, i) in navItems" :key="item.path">
+              <RouterLink :to="item.path"
+                class="group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-300 anim-fade-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-2"
+                :style="{ '--delay': `${i * 60}ms` }"
+                :class="isNavActive(item)
+                  ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-200/70'
+                  : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg transition-all duration-300"
+                  :class="isNavActive(item)
+                    ? 'bg-white/20 scale-105'
+                    : 'bg-blue-50/80 group-hover:bg-blue-100 group-hover:scale-105'">
+                  {{ item.icon }}
+                </span>
+                <span class="flex-1 truncate">{{ item.label }}</span>
+                <span v-if="isNavActive(item)"
+                  class="h-1.5 w-1.5 rounded-full bg-white/90 anim-pop" />
+              </RouterLink>
+
+              <div v-if="item.children && item.children.length" class="ml-5 space-y-1 border-l-2 border-blue-100 pl-3">
+                <RouterLink v-for="child in item.children" :key="child.path" :to="child.path"
+                  class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
+                  :class="route.path === child.path
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-500 hover:bg-blue-50/70 hover:text-blue-600'">
+                  <span class="text-sm">{{ child.icon }}</span>
+                  <span class="flex-1 truncate">{{ child.label }}</span>
+                  <span v-if="route.path === child.path"
+                    class="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                </RouterLink>
+              </div>
+            </template>
           </nav>
 
           <div class="mt-auto space-y-4 border-t border-gray-100 pt-6">
@@ -288,15 +331,15 @@ async function handleLogout() {
           class="flex min-w-full snap-x snap-mandatory items-stretch justify-around gap-0.5 overflow-x-auto px-1.5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <RouterLink v-for="item in navItems" :key="item.path" :to="item.path"
             class="group relative flex min-w-[40px] flex-1 basis-0 snap-center flex-col items-center gap-0.5 rounded-2xl px-1 py-2 text-[9px] font-semibold leading-tight transition-all duration-300 min-[380px]:text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
-            :class="$route.path === item.path ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'">
+            :class="isNavActive(item) ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'">
             <span class="absolute inset-0 rounded-2xl transition-all duration-300"
-              :class="$route.path === item.path
+              :class="isNavActive(item)
                 ? 'bg-gradient-to-b from-blue-50 to-cyan-50 shadow-sm ring-1 ring-blue-100'
                 : 'bg-transparent group-hover:bg-blue-50/70'" />
-            <span v-if="$route.path === item.path"
+            <span v-if="isNavActive(item)"
               class="absolute -top-0.5 h-1 w-6 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 shadow-sm" />
             <span class="relative text-base transition-transform duration-300 min-[380px]:text-lg"
-              :class="$route.path === item.path ? 'scale-110' : 'group-hover:scale-105'">{{ item.icon }}</span>
+              :class="isNavActive(item) ? 'scale-110' : 'group-hover:scale-105'">{{ item.icon }}</span>
             <span class="relative w-full truncate text-center">{{ item.shortLabel }}</span>
           </RouterLink>
         </div>

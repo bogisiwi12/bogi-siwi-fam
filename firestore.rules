@@ -84,6 +84,15 @@ rules_version = '2';
 //   - date: string (required, YYYY-MM-DD)
 //   - note: string (required, <=300)
 //   - walletId: string (required, 1-128)
+//   - entryId: string (optional, <=128) - links to a financeEntries doc
+//   - createdAt: timestamp (optional, immutable)
+//
+// Collection: financeEntries/{entryId}
+//   Access: read/write = admin or parent only (private family finances)
+//   - type: string (required, goal/borrowed/lent)
+//   - name: string (required, 1-80)
+//   - amount: number (required, >0, <=1000000000000)
+//   - note: string (required, <=300)
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: itineraries/{tripId}
@@ -277,13 +286,22 @@ service cloud.firestore {
     }
 
     function isValidTransaction(data) {
-      return data.keys().hasOnly(['type', 'amount', 'category', 'date', 'note', 'walletId', 'createdAt'])
+      return data.keys().hasOnly(['type', 'amount', 'category', 'date', 'note', 'walletId', 'entryId', 'createdAt'])
         && data.type in ['income', 'expense']
         && data.amount is number && data.amount > 0 && data.amount <= 1000000000000
         && data.category is string && data.category.size() > 0 && data.category.size() <= 40
         && isValidIsoDate(data.date)
         && data.note is string && data.note.size() <= 300
-        && data.walletId is string && data.walletId.size() > 0 && data.walletId.size() <= 128;
+        && data.walletId is string && data.walletId.size() > 0 && data.walletId.size() <= 128
+        && (!('entryId' in data) || (data.entryId is string && data.entryId.size() <= 128));
+    }
+
+    function isValidFinanceEntry(data) {
+      return data.keys().hasOnly(['type', 'name', 'amount', 'note', 'createdAt'])
+        && data.type in ['goal', 'borrowed', 'lent']
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 80
+        && data.amount is number && data.amount > 0 && data.amount <= 1000000000000
+        && data.note is string && data.note.size() <= 300;
     }
 
     function isValidWallet(data) {
@@ -492,6 +510,18 @@ service cloud.firestore {
       allow create: if isAdminOrParent() && isValidTransaction(request.resource.data);
       allow update: if isAdminOrParent()
         && isValidTransaction(request.resource.data)
+        && createdAtUnchanged();
+      allow delete: if isAdminOrParent();
+    }
+
+    // =============================================================
+    // Finance goals / borrowed / lent entries (private: admin or parent)
+    // =============================================================
+    match /financeEntries/{entryId} {
+      allow read: if isAdminOrParent();
+      allow create: if isAdminOrParent() && isValidFinanceEntry(request.resource.data);
+      allow update: if isAdminOrParent()
+        && isValidFinanceEntry(request.resource.data)
         && createdAtUnchanged();
       allow delete: if isAdminOrParent();
     }

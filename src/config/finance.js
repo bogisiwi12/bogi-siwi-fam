@@ -18,6 +18,60 @@ export const CREDIT_CARD_PAYMENT_CATEGORY = {
   class: 'bg-rose-100 text-rose-700'
 }
 
+export const TRANSFER_CATEGORY = {
+  value: 'transfer',
+  label: 'Wallet transfer',
+  icon: '🔄',
+  class: 'bg-sky-100 text-sky-700'
+}
+
+export const ADMIN_FEE_CATEGORY = {
+  value: 'admin-fee',
+  label: 'Transfer admin fee',
+  icon: '🧾',
+  class: 'bg-gray-100 text-gray-600'
+}
+
+export const BORROWED_ADMIN_FEE_CATEGORY = {
+  value: 'borrowed-admin-fee',
+  label: 'Borrowed admin fee',
+  icon: '🧾',
+  class: 'bg-gray-100 text-gray-600'
+}
+
+export const FINANCE_ENTRY_TYPES = [
+  {
+    value: 'goal',
+    label: 'Goal',
+    plural: 'Goals',
+    icon: '🎯',
+    class: 'bg-indigo-100 text-indigo-700',
+    bar: 'from-indigo-500 to-violet-400'
+  },
+  {
+    value: 'borrowed',
+    label: 'Borrowed',
+    plural: 'Borrowed',
+    icon: '📥',
+    class: 'bg-rose-100 text-rose-700',
+    bar: 'from-rose-500 to-orange-400'
+  },
+  {
+    value: 'lent',
+    label: 'Lent',
+    plural: 'Lent',
+    icon: '📤',
+    class: 'bg-emerald-100 text-emerald-700',
+    bar: 'from-emerald-500 to-teal-400'
+  }
+]
+
+const FALLBACK_ENTRY_TYPE = FINANCE_ENTRY_TYPES[0]
+
+export function entryTypeMeta(value) {
+  return FINANCE_ENTRY_TYPES.find((item) => item.value === value) || FALLBACK_ENTRY_TYPE
+}
+
 const FALLBACK_WALLET = WALLET_TYPES[WALLET_TYPES.length - 1]
 
 export function walletMeta(value) {
@@ -61,6 +115,15 @@ const FALLBACK_CATEGORY = {
 export function categoryMeta(type, value) {
   if (type === 'income' && value === CREDIT_CARD_PAYMENT_CATEGORY.value) {
     return CREDIT_CARD_PAYMENT_CATEGORY
+  }
+  if (value === TRANSFER_CATEGORY.value) {
+    return TRANSFER_CATEGORY
+  }
+  if (value === ADMIN_FEE_CATEGORY.value) {
+    return ADMIN_FEE_CATEGORY
+  }
+  if (value === BORROWED_ADMIN_FEE_CATEGORY.value) {
+    return BORROWED_ADMIN_FEE_CATEGORY
   }
   const list = FINANCE_CATEGORIES[type] || FINANCE_CATEGORIES.expense
   return list.find((item) => item.value === value) || FALLBACK_CATEGORY

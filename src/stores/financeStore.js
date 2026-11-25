@@ -9,12 +9,21 @@ import {
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { useAuthStore } from '@/stores/authStore'
 import { useNotificationStore } from '@/stores/notificationStore'
-import { FINANCE_TYPES, WALLET_TYPES, categoryMeta } from '@/config/finance'
+import {
+  FINANCE_TYPES,
+  FINANCE_ENTRY_TYPES,
+  WALLET_TYPES,
+  TRANSFER_CATEGORY,
+  ADMIN_FEE_CATEGORY,
+  BORROWED_ADMIN_FEE_CATEGORY,
+  categoryMeta
+} from '@/config/finance'
 
 const MAX_AMOUNT = 1000000000000
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -32,7 +41,19 @@ function normalizeTransaction(payload) {
     category: toText(payload.category).slice(0, 40),
     date: toText(payload.date).slice(0, 10),
     note: toText(payload.note).slice(0, 300),
-    walletId: toText(payload.walletId).slice(0, 128)
+    walletId: toText(payload.walletId).slice(0, 128),
+    entryId: toText(payload.entryId).slice(0, 128)
+  }
+}
+
+function normalizeEntry(payload) {
+  return {
+    type: FINANCE_ENTRY_TYPES.some((item) => item.value === payload.type)
+      ? payload.type
+      : 'goal',
+    name: toText(payload.name).slice(0, 80),
+    amount: Math.round(toNumber(payload.amount, 0) * 100) / 100,
+    note: toText(payload.note).slice(0, 300)
   }
 }
 
@@ -52,12 +73,15 @@ export const useFinanceStore = defineStore('finance', () => {
   const notifications = useNotificationStore()
   const transactions = ref([])
   const wallets = ref([])
+  const entries = ref([])
   const loading = ref(false)
   const walletsLoading = ref(false)
+  const entriesLoading = ref(false)
   const error = ref('')
 
   let transactionsUnbind = null
   let walletsUnbind = null
+  let entriesUnbind = null
   let initPromise = null
 
   const walletsWithBalance = computed(() =>
@@ -201,12 +225,33 @@ export const useFinanceStore = defineStore('finance', () => {
     return true
   }
 
+  function validateEntry(payload) {
+    if (!FINANCE_ENTRY_TYPES.some((item) => item.value === payload.type)) {
+      error.value = 'Choose a valid entry type.'
+      return false
+    }
+    if (!payload.name) {
+      error.value = 'Enter a name.'
+      return false
+    }
+    if (!(payload.amount > 0)) {
+      error.value = 'Enter an amount greater than zero.'
+      return false
+    }
+    if (payload.amount > MAX_AMOUNT) {
+      error.value = 'That amount is too large.'
+      return false
+    }
+    return true
+  }
+
   function init() {
     if (transactionsUnbind) return Promise.resolve()
     if (initPromise) return initPromise
 
     loading.value = true
     walletsLoading.value = true
+    entriesLoading.value = true
     error.value = ''
 
     const transactionsQuery = query(collection(db, 'transactions'), orderBy('date', 'desc'))
@@ -235,6 +280,19 @@ export const useFinanceStore = defineStore('finance', () => {
       }
     )
 
+    const entriesQuery = query(collection(db, 'financeEntries'), orderBy('createdAt'))
+    entriesUnbind = onSnapshot(
+      entriesQuery,
+      (snapshot) => {
+        entries.value = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
+        entriesLoading.value = false
+      },
+      (err) => {
+        handleError('Loading finance entries', err)
+        entriesLoading.value = false
+      }
+    )
+
     initPromise = Promise.resolve()
     return initPromise
   }
@@ -244,14 +302,45 @@ export const useFinanceStore = defineStore('finance', () => {
     const transaction = normalizeTransaction(payload)
     if (!validateTransaction(transaction)) return null
 
+    const adminFee = Math.max(0, Math.round(toNumber(payload.adminFee, 0) * 100) / 100)
+    if (adminFee > MAX_AMOUNT) {
+      error.value = 'That admin fee is too large.'
+      return null
+    }
+    const linkedEntry = transaction.entryId
+      ? entries.value.find((entry) => entry.id === transaction.entryId)
+      : null
+    const applyAdminFee =
+      adminFee > 0 && transaction.type === 'expense' && linkedEntry?.type === 'borrowed'
+
     try {
-      const ref = await addDoc(collection(db, 'transactions'), {
-        ...transaction,
-        createdAt: serverTimestamp()
-      })
-      applyLocalTransaction({ ...transaction, id: ref.id })
-      publishActivity('added', { ...transaction, id: ref.id })
-      return ref.id
+      const mainRef = doc(collection(db, 'transactions'))
+      const batch = writeBatch(db)
+      batch.set(mainRef, { ...transaction, createdAt: serverTimestamp() })
+
+      let feeRef = null
+      let feeRecord = null
+      if (applyAdminFee) {
+        feeRecord = {
+          type: 'expense',
+          amount: adminFee,
+          category: BORROWED_ADMIN_FEE_CATEGORY.value,
+          date: transaction.date,
+          note: transaction.note,
+          walletId: transaction.walletId
+        }
+        feeRef = doc(collection(db, 'transactions'))
+        batch.set(feeRef, { ...feeRecord, createdAt: serverTimestamp() })
+      }
+
+      await batch.commit()
+      applyLocalTransaction({ ...transaction, id: mainRef.id })
+      publishActivity('added', { ...transaction, id: mainRef.id })
+      if (feeRef && feeRecord) {
+        applyLocalTransaction({ ...feeRecord, id: feeRef.id })
+        publishActivity('added', { ...feeRecord, id: feeRef.id })
+      }
+      return mainRef.id
     } catch (err) {
       handleError('Adding transaction', err)
       return null
@@ -282,6 +371,102 @@ export const useFinanceStore = defineStore('finance', () => {
       publishActivity('deleted', transaction)
     }
     return ok
+  }
+
+  async function transferBalance(payload) {
+    error.value = ''
+    const fromWalletId = toText(payload.fromWalletId).slice(0, 128)
+    const toWalletId = toText(payload.toWalletId).slice(0, 128)
+    const amount = Math.round(toNumber(payload.amount, 0) * 100) / 100
+    const fee = Math.max(0, Math.round(toNumber(payload.fee, 0) * 100) / 100)
+    const date = toText(payload.date).slice(0, 10)
+    const note = toText(payload.note).slice(0, 300)
+
+    if (!fromWalletId || !toWalletId) {
+      error.value = 'Choose both the source and destination wallet.'
+      return false
+    }
+    if (fromWalletId === toWalletId) {
+      error.value = 'Choose two different wallets.'
+      return false
+    }
+    if (!(amount > 0)) {
+      error.value = 'Enter an amount greater than zero.'
+      return false
+    }
+    if (amount > MAX_AMOUNT) {
+      error.value = 'That amount is too large.'
+      return false
+    }
+    if (!Number.isFinite(fee) || fee > MAX_AMOUNT) {
+      error.value = 'Enter a valid admin fee.'
+      return false
+    }
+    if (!ISO_DATE.test(date)) {
+      error.value = 'Choose a valid date.'
+      return false
+    }
+
+    const records = []
+    const batch = writeBatch(db)
+    const stage = (type, value, category) => {
+      const transaction = {
+        type,
+        amount: value,
+        category,
+        date,
+        note,
+        walletId: type === 'expense' ? fromWalletId : toWalletId
+      }
+      const ref = doc(collection(db, 'transactions'))
+      batch.set(ref, { ...transaction, createdAt: serverTimestamp() })
+      records.push({ ...transaction, id: ref.id })
+    }
+
+    stage('expense', amount, TRANSFER_CATEGORY.value)
+    stage('income', amount, TRANSFER_CATEGORY.value)
+    if (fee > 0) stage('expense', fee, ADMIN_FEE_CATEGORY.value)
+
+    try {
+      await batch.commit()
+      records.forEach((record) => {
+        applyLocalTransaction(record)
+        publishActivity('added', record)
+      })
+      return true
+    } catch (err) {
+      handleError('Transferring balance', err)
+      return false
+    }
+  }
+
+  async function addEntry(payload) {
+    error.value = ''
+    const entry = normalizeEntry(payload)
+    if (!validateEntry(entry)) return null
+
+    try {
+      const ref = await addDoc(collection(db, 'financeEntries'), {
+        ...entry,
+        createdAt: serverTimestamp()
+      })
+      return ref.id
+    } catch (err) {
+      handleError('Adding finance entry', err)
+      return null
+    }
+  }
+
+  function updateEntry(id, payload) {
+    error.value = ''
+    const entry = normalizeEntry(payload)
+    if (!validateEntry(entry)) return Promise.resolve(false)
+
+    return persist(updateDoc(doc(db, 'financeEntries', id), entry), 'Updating finance entry')
+  }
+
+  function removeEntry(id) {
+    return persist(deleteDoc(doc(db, 'financeEntries', id)), 'Removing finance entry')
   }
 
   async function addWallet(payload) {
@@ -322,25 +507,37 @@ export const useFinanceStore = defineStore('finance', () => {
       walletsUnbind()
       walletsUnbind = null
     }
+    if (entriesUnbind) {
+      entriesUnbind()
+      entriesUnbind = null
+    }
     transactions.value = []
     wallets.value = []
+    entries.value = []
     initPromise = null
     loading.value = false
     walletsLoading.value = false
+    entriesLoading.value = false
     error.value = ''
   }
 
   return {
     transactions,
     wallets,
+    entries,
     walletsWithBalance,
     loading,
     walletsLoading,
+    entriesLoading,
     error,
     init,
     addTransaction,
     updateTransaction,
     removeTransaction,
+    transferBalance,
+    addEntry,
+    updateEntry,
+    removeEntry,
     addWallet,
     updateWallet,
     removeWallet,

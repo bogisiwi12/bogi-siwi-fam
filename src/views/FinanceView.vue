@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useFinanceStore } from '@/stores/financeStore'
 import { useAuthStore } from '@/stores/authStore'
 import NotificationBell from '@/components/NotificationBell.vue'
@@ -9,7 +10,11 @@ import {
   FINANCE_CATEGORIES,
   FINANCE_TYPES,
   WALLET_TYPES,
+  ADMIN_FEE_CATEGORY,
+  BORROWED_ADMIN_FEE_CATEGORY,
+  TRANSFER_CATEGORY,
   categoryMeta,
+  entryTypeMeta,
   walletMeta,
 } from '@/config/finance'
 
@@ -37,6 +42,8 @@ const form = reactive({
   date: todayIso(),
   note: '',
   walletId: '',
+  entryId: '',
+  adminFee: '',
 })
 
 const showWalletForm = ref(false)
@@ -47,6 +54,17 @@ const walletForm = reactive({
   type: 'cash',
   initialBalance: '',
   creditLimit: '',
+})
+
+const showTransferForm = ref(false)
+const transferFormError = ref('')
+const transferForm = reactive({
+  fromWalletId: '',
+  toWalletId: '',
+  amount: '',
+  fee: '',
+  date: todayIso(),
+  note: '',
 })
 
 function loadCurrency() {
@@ -114,6 +132,9 @@ const allCategories = computed(() => [
     FINANCE_CATEGORIES[type].map((category) => ({ ...category, type })),
   ),
   { ...CREDIT_CARD_PAYMENT_CATEGORY, type: 'income' },
+  { ...TRANSFER_CATEGORY, type: 'expense' },
+  { ...ADMIN_FEE_CATEGORY, type: 'expense' },
+  { ...BORROWED_ADMIN_FEE_CATEGORY, type: 'expense' },
 ])
 
 const categoryOptions = computed(() =>
@@ -126,11 +147,42 @@ const walletsById = computed(() =>
   Object.fromEntries(store.wallets.map((wallet) => [wallet.id, wallet])),
 )
 
+const entriesById = computed(() =>
+  Object.fromEntries(store.entries.map((entry) => [entry.id, entry])),
+)
+
 const transactionCategories = computed(() => {
   if (form.type === 'income' && walletsById.value[form.walletId]?.type === 'credit') {
     return [CREDIT_CARD_PAYMENT_CATEGORY]
   }
   return FINANCE_CATEGORIES[form.type]
+})
+
+const entryOptions = computed(() => {
+  const order = { goal: 0, borrowed: 1, lent: 2 }
+  return [...store.entries].sort((a, b) => {
+    const diff = (order[a.type] ?? 9) - (order[b.type] ?? 9)
+    return diff || (a.name || '').localeCompare(b.name || '')
+  })
+})
+
+const selectedEntry = computed(() =>
+  store.entries.find((entry) => entry.id === form.entryId),
+)
+
+const showBorrowedAdminFee = computed(
+  () => !editingId.value && form.type === 'expense' && selectedEntry.value?.type === 'borrowed',
+)
+
+const selectedEntryRemaining = computed(() => {
+  const entry = selectedEntry.value
+  if (!entry) return 0
+  const used = store.transactions.reduce((sum, transaction) => {
+    if (transaction.entryId !== entry.id) return sum
+    if (transaction.id === editingId.value) return sum
+    return sum + (Number(transaction.amount) || 0)
+  }, 0)
+  return Math.max(0, (Number(entry.amount) || 0) - used)
 })
 
 const totalWalletBalance = computed(() =>
@@ -146,6 +198,16 @@ const walletFormOutstanding = computed(() => {
     initialBalance + (Number(wallet?.expense) || 0) - (Number(wallet?.income) || 0),
   )
 })
+
+const transferAmount = computed(() => Number(transferForm.amount) || 0)
+const transferFee = computed(() => Math.max(0, Number(transferForm.fee) || 0))
+const transferTotalOut = computed(() => transferAmount.value + transferFee.value)
+const transferSourceWallet = computed(() =>
+  store.walletsWithBalance.find((item) => item.id === transferForm.fromWalletId),
+)
+const transferDestinationWallet = computed(() =>
+  store.walletsWithBalance.find((item) => item.id === transferForm.toWalletId),
+)
 
 const periodLabel = computed(() =>
   rangeMode.value === 'all' ? 'All time' : formatMonthLabel(selectedMonth.value),
@@ -171,8 +233,9 @@ const filteredTransactions = computed(() => {
     if (term) {
       const label = categoryMeta(transaction.type, transaction.category).label
       const wallet = walletsById.value[transaction.walletId]
+      const entry = entriesById.value[transaction.entryId]
       const haystack =
-        `${transaction.note || ''} ${label} ${transaction.date || ''} ${wallet?.name || ''}`.toLowerCase()
+        `${transaction.note || ''} ${label} ${transaction.date || ''} ${wallet?.name || ''} ${entry?.name || ''}`.toLowerCase()
       if (!haystack.includes(term)) return false
     }
     return true
@@ -318,6 +381,8 @@ function resetForm() {
   form.date = todayIso()
   form.note = ''
   form.walletId = ''
+  form.entryId = ''
+  form.adminFee = ''
   formError.value = ''
 }
 
@@ -337,6 +402,10 @@ function openEditTransaction(transaction) {
   form.date = transaction.date || todayIso()
   form.note = transaction.note || ''
   form.walletId = transaction.walletId || ''
+  form.entryId = store.entries.some((entry) => entry.id === transaction.entryId)
+    ? transaction.entryId
+    : ''
+  form.adminFee = ''
   syncTransactionCategory()
   formError.value = ''
   showForm.value = true
@@ -385,6 +454,15 @@ async function saveTransaction() {
     return
   }
 
+  let adminFee = 0
+  if (showBorrowedAdminFee.value && form.adminFee !== '') {
+    adminFee = Number(form.adminFee)
+    if (!Number.isFinite(adminFee) || adminFee < 0) {
+      formError.value = 'Enter a valid admin fee.'
+      return
+    }
+  }
+
   const payload = {
     type: form.type,
     amount,
@@ -392,6 +470,8 @@ async function saveTransaction() {
     date: form.date,
     note: form.note,
     walletId: form.walletId,
+    entryId: form.entryId,
+    adminFee,
   }
 
   if (editingId.value) {
@@ -505,12 +585,84 @@ async function removeWallet(wallet) {
   await store.removeWallet(wallet.id)
   if (walletFilter.value === wallet.id) walletFilter.value = 'all'
   if (form.walletId === wallet.id) form.walletId = ''
+  if (transferForm.fromWalletId === wallet.id) transferForm.fromWalletId = ''
+  if (transferForm.toWalletId === wallet.id) transferForm.toWalletId = ''
+}
+
+function resetTransferForm() {
+  const [first, second] = store.walletsWithBalance
+  transferForm.fromWalletId = first?.id || ''
+  transferForm.toWalletId = second?.id || ''
+  transferForm.amount = ''
+  transferForm.fee = ''
+  transferForm.date = todayIso()
+  transferForm.note = ''
+  transferFormError.value = ''
+}
+
+function openTransfer() {
+  if (!canManage.value) return
+  resetTransferForm()
+  showTransferForm.value = true
+}
+
+function closeTransfer() {
+  showTransferForm.value = false
+  transferFormError.value = ''
+}
+
+async function saveTransfer() {
+  if (!canManage.value) return
+  transferFormError.value = ''
+
+  const amount = Number(transferForm.amount)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    transferFormError.value = 'Enter an amount greater than zero.'
+    return
+  }
+  if (!transferForm.fromWalletId || !transferForm.toWalletId) {
+    transferFormError.value = 'Choose both the source and destination wallet.'
+    return
+  }
+  if (transferForm.fromWalletId === transferForm.toWalletId) {
+    transferFormError.value = 'Choose two different wallets.'
+    return
+  }
+  const fee = transferForm.fee === '' ? 0 : Number(transferForm.fee)
+  if (!Number.isFinite(fee) || fee < 0) {
+    transferFormError.value = 'Enter a valid admin fee.'
+    return
+  }
+  if (!transferForm.date) {
+    transferFormError.value = 'Choose a date.'
+    return
+  }
+
+  const ok = await store.transferBalance({
+    fromWalletId: transferForm.fromWalletId,
+    toWalletId: transferForm.toWalletId,
+    amount,
+    fee,
+    date: transferForm.date,
+    note: transferForm.note,
+  })
+  if (!ok) {
+    transferFormError.value = store.error
+    return
+  }
+
+  if (rangeMode.value === 'month' && transferForm.date) {
+    selectedMonth.value = transferForm.date.slice(0, 7)
+  }
+
+  closeTransfer()
 }
 
 function handleKeydown(event) {
   if (event.key !== 'Escape') return
   if (showForm.value) closeForm()
   if (showWalletForm.value) closeWalletForm()
+  if (showTransferForm.value) closeTransfer()
 }
 
 onMounted(() => {
@@ -539,6 +691,12 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <RouterLink
+          to="/finance/entries"
+          class="inline-flex items-center gap-1.5 rounded-xl border border-indigo-100 bg-white px-3 py-2.5 text-xs font-semibold text-indigo-600 shadow-sm transition-all hover:bg-indigo-50 active:scale-95"
+        >
+          🎯 Goals & Debts
+        </RouterLink>
         <NotificationBell />
         <select
           :value="currency"
@@ -678,14 +836,23 @@ onUnmounted(() => {
           </h2>
           <p class="text-xs text-gray-400">Every income and expense is linked to a wallet.</p>
         </div>
-        <button
-          v-if="canManage"
-          type="button"
-          class="rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-semibold text-blue-600 shadow-sm transition-all hover:bg-blue-50 active:scale-95"
-          @click="openNewWallet"
-        >
-          + Add wallet
-        </button>
+        <div v-if="canManage" class="flex items-center gap-2">
+          <button
+            v-if="store.wallets.length >= 2"
+            type="button"
+            class="rounded-xl border border-emerald-100 bg-white px-3 py-2 text-xs font-semibold text-emerald-600 shadow-sm transition-all hover:bg-emerald-50 active:scale-95"
+            @click="openTransfer"
+          >
+            ⇄ Transfer
+          </button>
+          <button
+            type="button"
+            class="rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-semibold text-blue-600 shadow-sm transition-all hover:bg-blue-50 active:scale-95"
+            @click="openNewWallet"
+          >
+            + Add wallet
+          </button>
+        </div>
       </div>
 
       <div
@@ -1035,6 +1202,13 @@ onUnmounted(() => {
                   <span :class="walletsById[transaction.walletId] ? '' : 'text-amber-500'">
                     {{ walletsById[transaction.walletId]?.name || 'Unassigned wallet' }}
                   </span>
+                  <template v-if="entriesById[transaction.entryId]">
+                    <span class="text-gray-300">·</span>
+                    <span class="text-indigo-500">
+                      {{ entryTypeMeta(entriesById[transaction.entryId].type).icon }}
+                      {{ entriesById[transaction.entryId].name }}
+                    </span>
+                  </template>
                 </p>
               </div>
               <div class="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -1343,6 +1517,68 @@ onUnmounted(() => {
             </div>
 
             <div class="grid gap-3 sm:grid-cols-2">
+              <div :class="showBorrowedAdminFee ? '' : 'sm:col-span-2'">
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400"
+                  >Link to goal / debt (optional)</label
+                >
+                <select
+                  v-model="form.entryId"
+                  class="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">None</option>
+                  <option v-for="entry in entryOptions" :key="entry.id" :value="entry.id">
+                    {{ entryTypeMeta(entry.type).icon }} {{ entryTypeMeta(entry.type).label }}:
+                    {{ entry.name }}
+                  </option>
+                </select>
+                <p v-if="selectedEntry" class="mt-1 text-[11px] font-medium text-indigo-600">
+                  This {{ form.type }} reduces
+                  <span class="font-bold">{{ selectedEntry.name }}</span
+                  >. Remaining after saving:
+                  <span class="font-bold">{{
+                    formatMoney(
+                      Math.max(
+                        0,
+                        selectedEntryRemaining - (Number(form.amount) || 0),
+                      ),
+                    )
+                  }}</span>
+                </p>
+                <p v-else-if="!entryOptions.length" class="mt-1 text-[11px] text-gray-400">
+                  Create Goals, Borrowed, or Lent entries in
+                  <RouterLink to="/finance/entries" class="font-semibold text-indigo-600 hover:underline">
+                    Goals & Debts
+                  </RouterLink>
+                  to link transactions.
+                </p>
+              </div>
+
+              <div v-if="showBorrowedAdminFee">
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400"
+                  >Admin fee (optional)</label
+                >
+                <div
+                  class="mt-1 flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 transition-all focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100"
+                >
+                  <span class="text-sm font-bold text-gray-400">{{ currency }}</span>
+                  <input
+                    v-model="form.adminFee"
+                    type="number"
+                    min="0"
+                    max="1000000000000"
+                    step="0.01"
+                    placeholder="0"
+                    class="w-full bg-transparent text-lg font-bold text-gray-800 outline-none"
+                  />
+                </div>
+                <p class="mt-1 text-[11px] text-gray-400">
+                  Charged from the same wallet as a separate expense. It does not reduce the
+                  borrowed remaining amount.
+                </p>
+              </div>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
               <div>
                 <label class="text-xs font-bold uppercase tracking-wide text-gray-400"
                   >Category</label
@@ -1563,6 +1799,182 @@ onUnmounted(() => {
                 class="flex-1 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-200/60 transition-all hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95"
               >
                 {{ editingWalletId ? 'Save wallet' : 'Add wallet' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="showTransferForm && canManage"
+        class="fixed inset-0 z-[80] flex items-end justify-center p-0 sm:items-center sm:p-6"
+      >
+        <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" @click="closeTransfer" />
+
+        <div
+          class="relative max-h-[94vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl anim-scale-in sm:max-w-md sm:rounded-3xl sm:p-6"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-extrabold text-gray-800">Transfer balance</h2>
+              <p class="text-sm text-gray-500">Move money from one wallet to another.</p>
+            </div>
+            <button
+              type="button"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-90"
+              aria-label="Close"
+              @click="closeTransfer"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form class="mt-5 space-y-4" @submit.prevent="saveTransfer">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400"
+                  >From wallet</label
+                >
+                <select
+                  v-model="transferForm.fromWalletId"
+                  class="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="" disabled>Select a wallet…</option>
+                  <option
+                    v-for="wallet in store.walletsWithBalance"
+                    :key="wallet.id"
+                    :value="wallet.id"
+                  >
+                    {{ walletMeta(wallet.type).icon }} {{ wallet.name }}
+                  </option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400"
+                  >To wallet</label
+                >
+                <select
+                  v-model="transferForm.toWalletId"
+                  class="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="" disabled>Select a wallet…</option>
+                  <option
+                    v-for="wallet in store.walletsWithBalance"
+                    :key="wallet.id"
+                    :value="wallet.id"
+                  >
+                    {{ walletMeta(wallet.type).icon }} {{ wallet.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400"
+                  >Amount</label
+                >
+                <div
+                  class="mt-1 flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 transition-all focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100"
+                >
+                  <span class="text-sm font-bold text-gray-400">{{ currency }}</span>
+                  <input
+                    v-model="transferForm.amount"
+                    type="number"
+                    min="0"
+                    max="1000000000000"
+                    step="0.01"
+                    placeholder="0"
+                    class="w-full bg-transparent text-lg font-extrabold text-gray-800 outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400"
+                  >Admin fee (optional)</label
+                >
+                <div
+                  class="mt-1 flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 transition-all focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100"
+                >
+                  <span class="text-sm font-bold text-gray-400">{{ currency }}</span>
+                  <input
+                    v-model="transferForm.fee"
+                    type="number"
+                    min="0"
+                    max="1000000000000"
+                    step="0.01"
+                    placeholder="0"
+                    class="w-full bg-transparent text-lg font-bold text-gray-800 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400">Date</label>
+                <input
+                  v-model="transferForm.date"
+                  type="date"
+                  class="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div>
+                <label class="text-xs font-bold uppercase tracking-wide text-gray-400"
+                  >Note (optional)</label
+                >
+                <input
+                  v-model="transferForm.note"
+                  maxlength="300"
+                  placeholder="e.g. Moving savings to bank"
+                  class="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+              <div class="flex items-center justify-between text-xs font-semibold text-gray-500">
+                <span>Deducted from source</span>
+                <span class="tabular-nums text-rose-500">−{{ formatMoney(transferTotalOut) }}</span>
+              </div>
+              <div
+                class="mt-1 flex items-center justify-between text-xs font-semibold text-gray-500"
+              >
+                <span>Received by destination</span>
+                <span class="tabular-nums text-emerald-600">+{{ formatMoney(transferAmount) }}</span>
+              </div>
+              <p
+                v-if="transferSourceWallet && transferDestinationWallet"
+                class="mt-2 text-[11px] text-gray-400"
+              >
+                {{ transferSourceWallet.name }} → {{ transferDestinationWallet.name }}
+                <span v-if="transferFee > 0"> · includes {{ formatMoney(transferFee) }} admin fee</span>
+              </p>
+            </div>
+
+            <p
+              v-if="transferFormError"
+              class="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600"
+            >
+              {{ transferFormError }}
+            </p>
+
+            <div class="flex gap-3 pt-1">
+              <button
+                type="button"
+                class="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-500 transition-all hover:bg-gray-50 active:scale-95"
+                @click="closeTransfer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                :disabled="store.wallets.length < 2"
+                class="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-emerald-200/60 transition-all hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Transfer balance
               </button>
             </div>
           </form>
