@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useFinanceStore } from '@/stores/financeStore'
 import NotificationBell from '@/components/NotificationBell.vue'
-import { CURRENCIES, categoryMeta, walletMeta } from '@/config/finance'
+import { CURRENCIES, TRANSFER_CATEGORY, categoryMeta, walletMeta } from '@/config/finance'
 
 const store = useFinanceStore()
 
@@ -134,6 +134,7 @@ function buildBreakdown(type) {
   let total = 0
   for (const transaction of filteredTransactions.value) {
     if (transaction.type !== type) continue
+    if (transaction.category === TRANSFER_CATEGORY.value) continue
     const amount = Number(transaction.amount) || 0
     map.set(transaction.category, (map.get(transaction.category) || 0) + amount)
     total += amount
@@ -647,6 +648,7 @@ onUnmounted(() => {
               periodLabel
             }}</span>
           </div>
+          <p class="mt-1 text-[10px] font-medium text-gray-400">Wallet transfers are excluded.</p>
 
           <div v-if="expenseDonut.length" class="mt-4 flex flex-col items-center gap-4">
             <div class="relative h-40 w-40 shrink-0">
@@ -853,6 +855,7 @@ onUnmounted(() => {
               periodLabel
             }}</span>
           </div>
+          <p class="mt-1 text-[10px] font-medium text-gray-400">Wallet transfers are excluded.</p>
           <div v-if="topExpenseCategories.length" class="mt-4 space-y-3">
             <div v-for="item in topExpenseCategories" :key="item.value">
               <div class="flex items-center justify-between gap-2 text-xs">
@@ -893,6 +896,7 @@ onUnmounted(() => {
               periodLabel
             }}</span>
           </div>
+          <p class="mt-1 text-[10px] font-medium text-gray-400">Wallet transfers are excluded.</p>
           <div v-if="topIncomeCategories.length" class="mt-4 space-y-3">
             <div v-for="item in topIncomeCategories" :key="item.value">
               <div class="flex items-center justify-between gap-2 text-xs">

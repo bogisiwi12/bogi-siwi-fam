@@ -128,6 +128,41 @@ function formatGroupDate(value) {
   })
 }
 
+function formatAmountInput(value) {
+  if (value === '' || value == null) return ''
+  const [integerPart, decimalPart] = String(value).split('.')
+  const integerDigits = (integerPart || '').replace(/\D/g, '')
+  const grouped = integerDigits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  if (decimalPart === undefined) return grouped
+  const decimals = decimalPart.replace(/\D/g, '').slice(0, 2)
+  return `${grouped || '0'},${decimals}`
+}
+
+function parseAmountInput(value) {
+  const cleaned = String(value).replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '')
+  if (!cleaned) return ''
+  const [integerPart, decimalPart] = cleaned.split('.')
+  const integerDigits = (integerPart || '').replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  if (decimalPart === undefined) return integerDigits || '0'
+  const decimals = decimalPart.replace(/\D/g, '').slice(0, 2)
+  return `${integerDigits || '0'}.${decimals}`
+}
+
+function onAmountInput(event) {
+  form.amount = parseAmountInput(event.target.value)
+  event.target.value = formatAmountInput(form.amount)
+}
+
+function onTransferAmountInput(event) {
+  transferForm.amount = parseAmountInput(event.target.value)
+  event.target.value = formatAmountInput(transferForm.amount)
+}
+
+function onTransferFeeInput(event) {
+  transferForm.fee = parseAmountInput(event.target.value)
+  event.target.value = formatAmountInput(transferForm.fee)
+}
+
 const allCategories = computed(() => [
   ...FINANCE_TYPES.flatMap((type) =>
     FINANCE_CATEGORIES[type].map((category) => ({ ...category, type })),
@@ -730,9 +765,9 @@ onUnmounted(() => {
       {{ store.error }}
     </div>
 
-    <div class="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+    <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
       <div
-        class="group rounded-2xl border border-blue-50 bg-white/80 p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5"
+        class="group order-1 rounded-2xl border border-blue-50 bg-white/80 p-3 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5"
       >
         <div class="flex items-center justify-between gap-2">
           <span
@@ -748,7 +783,7 @@ onUnmounted(() => {
           Net balance
         </p>
         <p
-          class="mt-1 text-xl font-extrabold tabular-nums sm:text-2xl"
+          class="mt-1 text-lg font-extrabold tabular-nums sm:text-2xl"
           :class="totals.balance >= 0 ? 'text-gray-800' : 'text-rose-500'"
         >
           {{ formatMoney(totals.balance) }}
@@ -759,7 +794,7 @@ onUnmounted(() => {
       </div>
 
       <div
-        class="group rounded-2xl border border-emerald-50 bg-white/80 p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5"
+        class="group order-3 rounded-2xl border border-emerald-50 bg-white/80 p-3 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5 xl:order-2"
         style="--delay: 60ms"
       >
         <div class="flex items-center justify-between gap-2">
@@ -775,14 +810,14 @@ onUnmounted(() => {
         <p class="mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-xs">
           Income
         </p>
-        <p class="mt-1 text-xl font-extrabold tabular-nums text-emerald-600 sm:text-2xl">
+        <p class="mt-1 text-lg font-extrabold tabular-nums text-emerald-600 sm:text-2xl">
           +{{ formatMoney(totals.income) }}
         </p>
         <p class="mt-1 hidden text-[11px] text-gray-400 sm:block">Money coming in</p>
       </div>
 
       <div
-        class="group rounded-2xl border border-rose-50 bg-white/80 p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5"
+        class="group order-4 rounded-2xl border border-rose-50 bg-white/80 p-3 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5 xl:order-3"
         style="--delay: 120ms"
       >
         <div class="flex items-center justify-between gap-2">
@@ -798,14 +833,14 @@ onUnmounted(() => {
         <p class="mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-xs">
           Expenses
         </p>
-        <p class="mt-1 text-xl font-extrabold tabular-nums text-rose-500 sm:text-2xl">
+        <p class="mt-1 text-lg font-extrabold tabular-nums text-rose-500 sm:text-2xl">
           −{{ formatMoney(totals.expense) }}
         </p>
         <p class="mt-1 hidden text-[11px] text-gray-400 sm:block">Money going out</p>
       </div>
 
       <div
-        class="group rounded-2xl border border-purple-50 bg-white/80 p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5"
+        class="group order-2 rounded-2xl border border-purple-50 bg-white/80 p-3 shadow-sm backdrop-blur transition-all duration-300 hover-lift anim-fade-up sm:p-5 xl:order-4"
         style="--delay: 180ms"
       >
         <div class="flex items-center justify-between gap-2">
@@ -817,7 +852,7 @@ onUnmounted(() => {
         <p class="mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-400 sm:text-xs">
           Savings rate
         </p>
-        <p class="mt-1 text-xl font-extrabold tabular-nums text-purple-600 sm:text-2xl">
+        <p class="mt-1 text-lg font-extrabold tabular-nums text-purple-600 sm:text-2xl">
           {{ totals.savingsRate == null ? '—' : `${Math.round(totals.savingsRate)}%` }}
         </p>
         <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
@@ -891,14 +926,11 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div
-        v-else
-        class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:pb-0 xl:grid-cols-4"
-      >
+      <div v-else class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <div
           v-for="wallet in store.walletsWithBalance"
           :key="wallet.id"
-          class="group relative min-w-[240px] shrink-0 snap-start overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur transition-all duration-300 hover-lift sm:min-w-0"
+          class="group relative overflow-hidden rounded-2xl border p-3 shadow-sm backdrop-blur transition-all duration-300 hover-lift sm:p-4"
           :class="
             wallet.type === 'credit'
               ? 'border-amber-100 bg-gradient-to-br from-white to-amber-50/70'
@@ -911,7 +943,7 @@ onUnmounted(() => {
           />
           <div class="relative flex items-start justify-between gap-2">
             <span
-              class="flex h-10 w-10 items-center justify-center rounded-xl text-xl transition-transform duration-300 group-hover:scale-110"
+              class="flex h-9 w-9 items-center justify-center rounded-xl text-lg transition-transform duration-300 group-hover:scale-110 sm:h-10 sm:w-10 sm:text-xl"
               :class="walletMeta(wallet.type).class"
             >
               {{ walletMeta(wallet.type).icon }}
@@ -961,17 +993,21 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
-          <p class="relative mt-3 truncate text-sm font-bold text-gray-800">{{ wallet.name }}</p>
-          <p class="relative text-[10px] font-bold uppercase tracking-wide text-gray-400">
+          <p class="relative mt-2 truncate text-xs font-bold text-gray-800 sm:mt-3 sm:text-sm">
+            {{ wallet.name }}
+          </p>
+          <p class="relative text-[9px] font-bold uppercase tracking-wide text-gray-400 sm:text-[10px]">
             {{ walletMeta(wallet.type).label }}
           </p>
 
           <template v-if="wallet.type === 'credit'">
-            <p class="relative mt-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+            <p
+              class="relative mt-2 text-[9px] font-bold uppercase tracking-wide text-gray-400 sm:text-[10px]"
+            >
               Available credit
             </p>
             <p
-              class="relative text-xl font-extrabold tabular-nums"
+              class="relative text-base font-extrabold tabular-nums sm:text-xl"
               :class="wallet.availableCredit > 0 ? 'text-gray-800' : 'text-rose-500'"
             >
               {{ formatMoney(wallet.availableCredit) }}
@@ -990,7 +1026,7 @@ onUnmounted(() => {
               />
             </div>
             <div
-              class="relative mt-1.5 flex items-center justify-between gap-2 text-[10px] font-semibold text-gray-400"
+              class="relative mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[9px] font-semibold text-gray-400 sm:text-[10px]"
             >
               <span>Outstanding {{ formatMoney(wallet.outstandingAmount) }}</span>
               <span>Limit {{ formatMoney(wallet.creditLimit) }}</span>
@@ -998,14 +1034,14 @@ onUnmounted(() => {
           </template>
           <template v-else>
             <p
-              class="relative mt-2 text-xl font-extrabold tabular-nums"
+              class="relative mt-2 text-base font-extrabold tabular-nums sm:text-xl"
               :class="wallet.balance >= 0 ? 'text-gray-800' : 'text-rose-500'"
             >
               {{ formatMoney(wallet.balance) }}
             </p>
             <p
               v-if="Number(wallet.initialBalance)"
-              class="relative mt-0.5 text-[10px] text-gray-400"
+              class="relative mt-0.5 text-[9px] text-gray-400 sm:text-[10px]"
             >
               Started at {{ formatMoney(wallet.initialBalance) }}
             </p>
@@ -1476,13 +1512,13 @@ onUnmounted(() => {
               >
                 <span class="text-sm font-bold text-gray-400">{{ currency }}</span>
                 <input
-                  v-model="form.amount"
-                  type="number"
-                  min="0"
-                  max="1000000000000"
-                  step="0.01"
+                  :value="formatAmountInput(form.amount)"
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
                   placeholder="0"
                   class="w-full bg-transparent text-xl font-extrabold text-gray-800 outline-none"
+                  @input="onAmountInput"
                   @keyup.esc="closeForm"
                 />
               </div>
@@ -1888,13 +1924,13 @@ onUnmounted(() => {
                 >
                   <span class="text-sm font-bold text-gray-400">{{ currency }}</span>
                   <input
-                    v-model="transferForm.amount"
-                    type="number"
-                    min="0"
-                    max="1000000000000"
-                    step="0.01"
+                    :value="formatAmountInput(transferForm.amount)"
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
                     placeholder="0"
                     class="w-full bg-transparent text-lg font-extrabold text-gray-800 outline-none"
+                    @input="onTransferAmountInput"
                   />
                 </div>
               </div>
@@ -1907,13 +1943,13 @@ onUnmounted(() => {
                 >
                   <span class="text-sm font-bold text-gray-400">{{ currency }}</span>
                   <input
-                    v-model="transferForm.fee"
-                    type="number"
-                    min="0"
-                    max="1000000000000"
-                    step="0.01"
+                    :value="formatAmountInput(transferForm.fee)"
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
                     placeholder="0"
                     class="w-full bg-transparent text-lg font-bold text-gray-800 outline-none"
+                    @input="onTransferFeeInput"
                   />
                 </div>
               </div>
