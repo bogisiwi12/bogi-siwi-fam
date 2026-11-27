@@ -45,6 +45,12 @@ const router = createRouter({
       meta: { requiresManager: true }
     },
     {
+      path: '/finance/backup',
+      name: 'finance-backup',
+      component: () => import('@/views/FinanceBackupView.vue'),
+      meta: { requiresManager: true }
+    },
+    {
       path: '/users',
       name: 'users',
       component: () => import('@/views/UsersView.vue'),

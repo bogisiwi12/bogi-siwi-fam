@@ -56,6 +56,13 @@ const allNavItems = [
         shortLabel: 'Goals',
         icon: '🎯',
         managerOnly: true
+      },
+      {
+        path: '/finance/backup',
+        label: 'Backup & Export',
+        shortLabel: 'Backup',
+        icon: '📤',
+        managerOnly: true
       }
     ]
   },
