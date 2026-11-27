@@ -44,6 +44,13 @@ const allNavItems = [
     managerOnly: true,
     children: [
       {
+        path: '/finance/summary',
+        label: 'Summary & Charts',
+        shortLabel: 'Summary',
+        icon: '📊',
+        managerOnly: true
+      },
+      {
         path: '/finance/entries',
         label: 'Goals & Debts',
         shortLabel: 'Goals',

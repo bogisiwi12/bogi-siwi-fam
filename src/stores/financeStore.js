@@ -10,6 +10,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  Timestamp,
   writeBatch
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
@@ -22,7 +23,8 @@ import {
   TRANSFER_CATEGORY,
   ADMIN_FEE_CATEGORY,
   BORROWED_ADMIN_FEE_CATEGORY,
-  categoryMeta
+  categoryMeta,
+  compareTransactionsByDateAndCreated
 } from '@/config/finance'
 
 const MAX_AMOUNT = 1000000000000
@@ -151,7 +153,7 @@ export const useFinanceStore = defineStore('finance', () => {
     transactions.value = [
       merged,
       ...transactions.value.filter((item) => item.id !== record.id)
-    ].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    ].sort(compareTransactionsByDateAndCreated)
   }
 
   function removeLocalTransaction(id) {
@@ -258,7 +260,9 @@ export const useFinanceStore = defineStore('finance', () => {
     transactionsUnbind = onSnapshot(
       transactionsQuery,
       (snapshot) => {
-        transactions.value = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
+        transactions.value = snapshot.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort(compareTransactionsByDateAndCreated)
         loading.value = false
       },
       (err) => {
@@ -334,10 +338,11 @@ export const useFinanceStore = defineStore('finance', () => {
       }
 
       await batch.commit()
-      applyLocalTransaction({ ...transaction, id: mainRef.id })
+      const createdAt = Timestamp.now()
+      applyLocalTransaction({ ...transaction, id: mainRef.id, createdAt })
       publishActivity('added', { ...transaction, id: mainRef.id })
       if (feeRef && feeRecord) {
-        applyLocalTransaction({ ...feeRecord, id: feeRef.id })
+        applyLocalTransaction({ ...feeRecord, id: feeRef.id, createdAt })
         publishActivity('added', { ...feeRecord, id: feeRef.id })
       }
       return mainRef.id
@@ -429,8 +434,9 @@ export const useFinanceStore = defineStore('finance', () => {
 
     try {
       await batch.commit()
+      const createdAt = Timestamp.now()
       records.forEach((record) => {
-        applyLocalTransaction(record)
+        applyLocalTransaction({ ...record, createdAt })
         publishActivity('added', record)
       })
       return true

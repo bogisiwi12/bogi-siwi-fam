@@ -14,6 +14,7 @@ import {
   BORROWED_ADMIN_FEE_CATEGORY,
   TRANSFER_CATEGORY,
   categoryMeta,
+  compareTransactionsByDateAndCreated,
   entryTypeMeta,
   walletMeta,
 } from '@/config/finance'
@@ -294,7 +295,7 @@ const transactionPageCount = computed(() =>
 const pageTransactions = computed(() => {
   const start = (transactionPage.value - 1) * transactionPageSize.value
   return [...filteredTransactions.value]
-    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .sort(compareTransactionsByDateAndCreated)
     .slice(start, start + transactionPageSize.value)
 })
 
@@ -691,6 +692,12 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <RouterLink
+          to="/finance/summary"
+          class="inline-flex items-center gap-1.5 rounded-xl border border-violet-100 bg-white px-3 py-2.5 text-xs font-semibold text-violet-600 shadow-sm transition-all hover:bg-violet-50 active:scale-95"
+        >
+          📊 Summary
+        </RouterLink>
         <RouterLink
           to="/finance/entries"
           class="inline-flex items-center gap-1.5 rounded-xl border border-indigo-100 bg-white px-3 py-2.5 text-xs font-semibold text-indigo-600 shadow-sm transition-all hover:bg-indigo-50 active:scale-95"

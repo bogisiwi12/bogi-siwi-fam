@@ -128,3 +128,18 @@ export function categoryMeta(type, value) {
   const list = FINANCE_CATEGORIES[type] || FINANCE_CATEGORIES.expense
   return list.find((item) => item.value === value) || FALLBACK_CATEGORY
 }
+
+export function transactionCreatedAtMs(record) {
+  const value = record?.createdAt
+  if (!value) return 0
+  if (typeof value.toMillis === 'function') return value.toMillis()
+  if (typeof value.seconds === 'number') return value.seconds * 1000
+  const parsed = value instanceof Date ? value.getTime() : Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function compareTransactionsByDateAndCreated(a, b) {
+  const dateDiff = (b.date || '').localeCompare(a.date || '')
+  if (dateDiff) return dateDiff
+  return transactionCreatedAtMs(b) - transactionCreatedAtMs(a)
+}

@@ -33,6 +33,12 @@ const router = createRouter({
       meta: { requiresManager: true }
     },
     {
+      path: '/finance/summary',
+      name: 'finance-summary',
+      component: () => import('@/views/FinanceSummaryView.vue'),
+      meta: { requiresManager: true }
+    },
+    {
       path: '/finance/entries',
       name: 'finance-entries',
       component: () => import('@/views/FinanceEntriesView.vue'),
