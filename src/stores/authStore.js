@@ -64,7 +64,9 @@ export const useAuthStore = defineStore('auth', () => {
     () => role.value === 'admin' || isBootstrapAdmin(user.value?.email)
   )
   const isParent = computed(() => role.value === 'parent')
+  const isChild = computed(() => role.value === 'child')
   const canManageRules = computed(() => isAdmin.value || isParent.value)
+  const canViewFinance = computed(() => isAdmin.value || isParent.value || isChild.value)
   const initial = computed(() => displayName.value.charAt(0).toUpperCase())
 
   async function ensureProfile(firebaseUser) {
@@ -203,7 +205,9 @@ export const useAuthStore = defineStore('auth', () => {
     isGuest,
     isAdmin,
     isParent,
+    isChild,
     canManageRules,
+    canViewFinance,
     displayName,
     role,
     initial,

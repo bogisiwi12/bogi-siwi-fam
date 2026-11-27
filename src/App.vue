@@ -41,14 +41,14 @@ const allNavItems = [
     label: 'Finance',
     shortLabel: 'Finance',
     icon: '💰',
-    managerOnly: true,
+    financeView: true,
     children: [
       {
         path: '/finance/summary',
         label: 'Summary & Charts',
         shortLabel: 'Summary',
         icon: '📊',
-        managerOnly: true
+        financeView: true
       },
       {
         path: '/finance/entries',
@@ -80,6 +80,7 @@ const navItems = computed(() =>
     .filter((item) => {
       if (item.adminOnly && !auth.isAdmin) return false
       if (item.managerOnly && !auth.isAdmin && !auth.isParent) return false
+      if (item.financeView && !auth.canViewFinance) return false
       return true
     })
     .map((item) =>
@@ -89,6 +90,7 @@ const navItems = computed(() =>
             children: item.children.filter((child) => {
               if (child.adminOnly && !auth.isAdmin) return false
               if (child.managerOnly && !auth.isAdmin && !auth.isParent) return false
+              if (child.financeView && !auth.canViewFinance) return false
               return true
             })
           }

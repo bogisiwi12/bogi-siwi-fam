@@ -69,7 +69,7 @@ rules_version = '2';
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: wallets/{walletId}
-//   Access: read/write = admin or parent only (private family finances)
+//   Access: read = admin, parent, or child (child is view-only); write = admin or parent
 //   - name: string (required, 1-60)
 //   - type: string (required, cash/bank/ewallet/savings/credit/other)
 //   - initialBalance: number (required, -1000000000000..1000000000000)
@@ -77,7 +77,7 @@ rules_version = '2';
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: transactions/{transactionId}
-//   Access: read/write = admin or parent only (private family finances)
+//   Access: read = admin, parent, or child (child is view-only); write = admin or parent
 //   - type: string (required, income/expense)
 //   - amount: number (required, >0, <=1000000000000)
 //   - category: string (required, 1-40)
@@ -88,7 +88,7 @@ rules_version = '2';
 //   - createdAt: timestamp (optional, immutable)
 //
 // Collection: financeEntries/{entryId}
-//   Access: read/write = admin or parent only (private family finances)
+//   Access: read = admin, parent, or child (child is view-only); write = admin or parent
 //   - type: string (required, goal/borrowed/lent)
 //   - name: string (required, 1-80)
 //   - amount: number (required, >0, <=1000000000000)
@@ -190,6 +190,17 @@ service cloud.firestore {
 
     function isAdminOrParent() {
       return isAdmin() || isParent();
+    }
+
+    // Children may view finance data (read-only); writes stay admin/parent.
+    function isChild() {
+      return isSignedIn()
+        && exists(userDocPath())
+        && get(userDocPath()).data.role == 'child';
+    }
+
+    function isFinanceViewer() {
+      return isAdminOrParent() || isChild();
     }
 
     function isValidRole(role) {
@@ -542,7 +553,7 @@ service cloud.firestore {
     // Finance wallets (private: admin or parent only)
     // =============================================================
     match /wallets/{walletId} {
-      allow read: if isAdminOrParent();
+      allow read: if isFinanceViewer();
       allow create: if isAdminOrParent() && isValidWallet(request.resource.data);
       allow update: if isAdminOrParent()
         && isValidWallet(request.resource.data)
@@ -554,7 +565,7 @@ service cloud.firestore {
     // Finance transactions (private: admin or parent only)
     // =============================================================
     match /transactions/{transactionId} {
-      allow read: if isAdminOrParent();
+      allow read: if isFinanceViewer();
       allow create: if isAdminOrParent() && isValidTransaction(request.resource.data);
       allow update: if isAdminOrParent()
         && isValidTransaction(request.resource.data)
@@ -566,7 +577,7 @@ service cloud.firestore {
     // Finance goals / borrowed / lent entries (private: admin or parent)
     // =============================================================
     match /financeEntries/{entryId} {
-      allow read: if isAdminOrParent();
+      allow read: if isFinanceViewer();
       allow create: if isAdminOrParent() && isValidFinanceEntry(request.resource.data);
       allow update: if isAdminOrParent()
         && isValidFinanceEntry(request.resource.data)

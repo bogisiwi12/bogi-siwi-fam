@@ -727,6 +727,12 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <span
+          v-if="!canManage"
+          class="inline-flex items-center gap-1.5 rounded-full border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700 shadow-sm"
+        >
+          👁️ View only
+        </span>
         <RouterLink
           to="/finance/summary"
           class="inline-flex items-center gap-1.5 rounded-xl border border-violet-100 bg-white px-3 py-2.5 text-xs font-semibold text-violet-600 shadow-sm transition-all hover:bg-violet-50 active:scale-95"
@@ -734,6 +740,7 @@ onUnmounted(() => {
           📊 Summary
         </RouterLink>
         <RouterLink
+          v-if="canManage"
           to="/finance/entries"
           class="inline-flex items-center gap-1.5 rounded-xl border border-indigo-100 bg-white px-3 py-2.5 text-xs font-semibold text-indigo-600 shadow-sm transition-all hover:bg-indigo-50 active:scale-95"
         >
@@ -914,7 +921,11 @@ onUnmounted(() => {
         <p class="text-3xl">👛</p>
         <p class="mt-2 text-sm font-semibold text-gray-600">No wallets yet</p>
         <p class="mt-1 text-xs text-gray-400">
-          Add a wallet (cash, bank, e-wallet) so you can assign each transaction.
+          {{
+            canManage
+              ? 'Add a wallet (cash, bank, e-wallet) so you can assign each transaction.'
+              : 'Wallets will appear here once a parent adds them.'
+          }}
         </p>
         <button
           v-if="canManage"
@@ -1199,7 +1210,9 @@ onUnmounted(() => {
             {{
               store.transactions.length
                 ? 'Try a different month, type or search term.'
-                : 'Add your first income or expense to start tracking.'
+                : canManage
+                  ? 'Add your first income or expense to start tracking.'
+                  : 'Finance activity will appear here once it is recorded.'
             }}
           </p>
           <button

@@ -2,10 +2,13 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useFinanceStore } from '@/stores/financeStore'
+import { useAuthStore } from '@/stores/authStore'
 import NotificationBell from '@/components/NotificationBell.vue'
 import { CURRENCIES, TRANSFER_CATEGORY, categoryMeta, walletMeta } from '@/config/finance'
 
 const store = useFinanceStore()
+const auth = useAuthStore()
+const canManage = computed(() => auth.isAdmin || auth.isParent)
 
 const currency = ref(loadCurrency())
 const rangeMode = ref('month')
@@ -359,6 +362,12 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <span
+          v-if="!canManage"
+          class="inline-flex items-center gap-1.5 rounded-full border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700 shadow-sm"
+        >
+          👁️ View only
+        </span>
         <NotificationBell />
         <select
           :value="currency"

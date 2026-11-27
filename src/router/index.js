@@ -30,13 +30,13 @@ const router = createRouter({
       path: '/finance',
       name: 'finance',
       component: () => import('@/views/FinanceView.vue'),
-      meta: { requiresManager: true }
+      meta: { requiresFinanceView: true }
     },
     {
       path: '/finance/summary',
       name: 'finance-summary',
       component: () => import('@/views/FinanceSummaryView.vue'),
-      meta: { requiresManager: true }
+      meta: { requiresFinanceView: true }
     },
     {
       path: '/finance/entries',
@@ -77,6 +77,10 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresManager && !authStore.isAdmin && !authStore.isParent) {
+    return { name: 'dashboard' }
+  }
+
+  if (to.meta.requiresFinanceView && !authStore.canViewFinance) {
     return { name: 'dashboard' }
   }
 
